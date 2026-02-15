@@ -22,7 +22,17 @@ The goal: a dedicated workspace for agentic coding — where you can monitor mul
 - **Custom Input Area** — Text input at bottom of pane container, image paste (Ctrl+V screenshot → thumbnail preview → saves to temp file → attaches path)
 - **Frameless Window** — Custom title bar with drag region, minimize/maximize/close buttons
 - **Tokyo Night Storm Theme** — Full dark theme via CSS variables, styled scrollbars, xterm.js theme colors
-- **Keyboard Shortcuts** — Ctrl+T (new tab), Ctrl+W (close tab), Ctrl+Shift+| (split H), Ctrl+Shift+_ (split V)
+- **Keyboard Shortcuts** — Ctrl+T (new tab), Ctrl+W (close tab), Ctrl+Shift+| (split H), Ctrl+Shift+_ (split V), Ctrl+E (toggle editor)
+- **Code Editor** — CodeMirror 6 panel above terminal with:
+  - Tokyo Night Storm theme matching the rest of the UI
+  - File tabs with modified-dot indicator and close buttons
+  - Auto-detect language from extension (JS/TS/JSX/TSX, Python, JSON, Markdown, HTML, CSS, C/C++, Java, Rust)
+  - Debounced auto-save (1s after last edit)
+  - **Live reload** — files edited externally (e.g. by Claude in the terminal) auto-update in the editor
+  - Line numbers, code folding, bracket matching, autocompletion, search (Ctrl+F)
+  - Vertical split layout with draggable resize handle between editor and terminal
+  - Toggle visibility via toolbar button or Ctrl+E
+  - Click any file in the sidebar explorer to open it in the editor
 
 ### Planned
 
@@ -34,6 +44,8 @@ The goal: a dedicated workspace for agentic coding — where you can monitor mul
 - Persistent settings (save to disk)
 - Context menu on terminal panes (copy, paste, split, close)
 - Search in terminal scrollback
+- Editor split view (two files side by side)
+- Git diff view in editor (@codemirror/merge)
 
 ## Tech Stack
 
@@ -45,6 +57,7 @@ The goal: a dedicated workspace for agentic coding — where you can monitor mul
 | node-pty | PTY process spawning |
 | React 19 | UI framework |
 | react-resizable-panels | Split pane layout |
+| CodeMirror 6 | Code editor (via @uiw/react-codemirror) |
 
 ## Getting Started
 
@@ -67,6 +80,7 @@ Electron Main Process
 Electron Renderer (React)
 ├── TabBar — project tab strip
 ├── Sidebar — explorer / commands / settings
+├── EditorPanel — CodeMirror 6 with file tabs + live reload
 ├── PaneContainer — split pane management
 ├── TerminalPane — xterm.js wrapper
 └── InputArea — text + image paste input
