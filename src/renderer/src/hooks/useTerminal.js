@@ -1,0 +1,163 @@
+import { useEffect, useRef, useCallback } from 'react'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import '@xterm/xterm/css/xterm.css'
+
+const THEME = {
+  background: '#1a1b26',
+  foreground: '#a9b1d6',
+  cursor: '#c0caf5',
+  cursorAccent: '#1a1b26',
+  selectionBackground: '#33467c',
+  selectionForeground: '#c0caf5',
+  black: '#15161e',
+  red: '#f7768e',
+  green: '#9ece6a',
+  yellow: '#e0af68',
+  blue: '#7aa2f7',
+  magenta: '#bb9af7',
+  cyan: '#7dcfff',
+  white: '#a9b1d6',
+  brightBlack: '#414868',
+  brightRed: '#f7768e',
+  brightGreen: '#9ece6a',
+  brightYellow: '#e0af68',
+  brightBlue: '#7aa2f7',
+  brightMagenta: '#bb9af7',
+  brightCyan: '#7dcfff',
+  brightWhite: '#c0caf5'
+}
+
+export function useTerminal(ptyId, containerRef, { cwd, autoStart } = {}) {
+  const termRef = useRef(null)
+  const fitAddonRef = useRef(null)
+  const cleanupRef = useRef(null)
+  const initializedRef = useRef(false)
+
+  const writeToPty = useCallback((data) => {
+    if (ptyId) {
+      window.electronAPI.ptyWrite({ id: ptyId, data })
+    }
+  }, [ptyId])
+
+  useEffect(() => {
+    if (!containerRef.current || !ptyId || initializedRef.current) return
+    initializedRef.current = true
+
+    const term = new Terminal({
+      theme: THEME,
+      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
+      fontSize: 14,
+      lineHeight: 1.2,
+      cursorBlink: true,
+      cursorStyle: 'bar',
+      allowTransparency: true,
+      scrollback: 5000
+    })
+
+    const fitAddon = new FitAddon()
+    term.loadAddon(fitAddon)
+    term.loadAddon(new WebLinksAddon())
+
+    // Try WebGL addon, fall back silently
+    import('@xterm/addon-webgl').then(({ WebglAddon }) => {
+      try {
+        term.loadAddon(new WebglAddon())
+      } catch {}
+    }).catch(() => {})
+
+    term.open(containerRef.current)
+
+    // Small delay to ensure container is laid out
+    requestAnimationFrame(() => {
+      try {
+        fitAddon.fit()
+      } catch {}
+    })
+
+    termRef.current = term
+    fitAddonRef.current = fitAddon
+
+    // Create PTY
+    const cols = term.cols
+    const rows = term.rows
+    window.electronAPI.ptyCreate({
+      id: ptyId,
+      cwd: cwd || undefined,
+      cols,
+      rows
+    })
+
+    // Terminal → PTY
+    term.onData((data) => {
+      window.electronAPI.ptyWrite({ id: ptyId, data })
+    })
+
+    // PTY → Terminal
+    const unsubData = window.electronAPI.onPtyData(({ id, data }) => {
+      if (id === ptyId) {
+        term.write(data)
+      }
+    })
+
+    const unsubExit = window.electronAPI.onPtyExit(({ id }) => {
+      if (id === ptyId) {
+        term.write('\r\n\x1b[90m[Process exited]\x1b[0m\r\n')
+      }
+    })
+
+    // Auto-start claude if requested
+    if (autoStart) {
+      setTimeout(() => {
+        window.electronAPI.ptyWrite({ id: ptyId, data: 'claude\n' })
+      }, 1000)
+    }
+
+    // Resize observer
+    const resizeObserver = new ResizeObserver(() => {
+      try {
+        fitAddon.fit()
+        window.electronAPI.ptyResize({ id: ptyId, cols: term.cols, rows: term.rows })
+      } catch {}
+    })
+    resizeObserver.observe(containerRef.current)
+
+    cleanupRef.current = () => {
+      resizeObserver.disconnect()
+      unsubData()
+      unsubExit()
+      term.dispose()
+      window.electronAPI.ptyKill({ id: ptyId })
+    }
+
+    return () => {
+      if (cleanupRef.current) {
+        cleanupRef.current()
+        cleanupRef.current = null
+      }
+      initializedRef.current = false
+    }
+  }, [ptyId, containerRef, cwd, autoStart])
+
+  const fit = useCallback(() => {
+    if (fitAddonRef.current) {
+      try {
+        fitAddonRef.current.fit()
+        if (termRef.current && ptyId) {
+          window.electronAPI.ptyResize({
+            id: ptyId,
+            cols: termRef.current.cols,
+            rows: termRef.current.rows
+          })
+        }
+      } catch {}
+    }
+  }, [ptyId])
+
+  const focus = useCallback(() => {
+    termRef.current?.focus()
+  }, [])
+
+  return { termRef, writeToPty, fit, focus }
+}
