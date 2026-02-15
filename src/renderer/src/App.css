@@ -599,6 +599,132 @@ html, body, #root {
   color: var(--accent-red);
 }
 
+/* Editor Panel */
+.editor-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-dark);
+  overflow: hidden;
+}
+
+.editor-panel__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-dim);
+  font-size: 13px;
+}
+
+.editor-panel__body {
+  flex: 1;
+  overflow: hidden;
+}
+
+.editor-panel__body .cm-editor {
+  height: 100%;
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.editor-panel__body .cm-editor .cm-scroller {
+  overflow: auto;
+}
+
+.editor-panel__body .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* Editor Tabs */
+.editor-tabs {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 4px;
+  background: var(--bg-medium);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 30px;
+}
+
+.editor-tabs::-webkit-scrollbar {
+  height: 0;
+}
+
+.editor-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--fg-dim);
+  background: transparent;
+  border: none;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.editor-tab:hover {
+  background: var(--bg-highlight);
+  color: var(--fg);
+}
+
+.editor-tab--active {
+  background: var(--bg-dark);
+  color: var(--fg-bright);
+  border-bottom: 2px solid var(--accent-blue);
+}
+
+.editor-tab__name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-tab__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-yellow);
+  flex-shrink: 0;
+}
+
+.editor-tab__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: var(--fg-dim);
+}
+
+.editor-tab:hover .editor-tab__close {
+  opacity: 1;
+}
+
+.editor-tab__close:hover {
+  background: var(--accent-red);
+  color: #fff;
+}
+
+/* Active toolbar button */
+.pane-toolbar__btn--active {
+  color: var(--accent-blue);
+  background: var(--bg-highlight);
+}
+
 /* Resize handles */
 [data-panel-group-direction="horizontal"] > [data-resize-handle-id] {
   width: 4px;

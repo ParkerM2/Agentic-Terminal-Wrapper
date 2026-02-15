@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // File System
   listDir: (dirPath) => ipcRenderer.invoke('fs:list-dir', { dirPath }),
+  readFile: (filePath) => ipcRenderer.invoke('fs:read-file', { filePath }),
+  writeFile: (filePath, content) => ipcRenderer.invoke('fs:write-file', { filePath, content }),
   watchDir: (id, dirPath) => ipcRenderer.invoke('fs:watch', { id, dirPath }),
   unwatchDir: (id) => ipcRenderer.invoke('fs:unwatch', { id }),
   onFsChanged: (callback) => {

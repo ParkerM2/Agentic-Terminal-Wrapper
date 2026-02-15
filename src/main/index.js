@@ -193,6 +193,25 @@ ipcMain.handle('fs:unwatch', (event, { id }) => {
   return { success: true }
 })
 
+// File Read IPC Handler
+ipcMain.handle('fs:read-file', async (event, { filePath }) => {
+  try {
+    const content = await fs.promises.readFile(filePath, 'utf-8')
+    return { content, error: null }
+  } catch (err) {
+    return { content: null, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:write-file', async (event, { filePath, content }) => {
+  try {
+    await fs.promises.writeFile(filePath, content, 'utf-8')
+    return { error: null }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
 // Clipboard IPC Handlers
 ipcMain.handle('clipboard:read-image', () => {
   const img = clipboard.readImage()

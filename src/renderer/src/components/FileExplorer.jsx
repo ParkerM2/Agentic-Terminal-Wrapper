@@ -54,7 +54,7 @@ function FileNode({ entry, depth, onSelect, refreshKey }) {
   )
 }
 
-export default function FileExplorer({ cwd, onSendCommand }) {
+export default function FileExplorer({ cwd, onOpenFile }) {
   const [rootEntries, setRootEntries] = useState([])
   const [rootPath, setRootPath] = useState('')
   const [pathInput, setPathInput] = useState('')
@@ -110,7 +110,7 @@ export default function FileExplorer({ cwd, onSendCommand }) {
   }
 
   const handleFileSelect = (entry) => {
-    onSendCommand(entry.path)
+    onOpenFile?.(entry)
   }
 
   return (

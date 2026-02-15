@@ -9,7 +9,7 @@ const SECTIONS = [
   { id: 'settings', icon: '\u{1F527}', label: 'Settings' }
 ]
 
-export default function Sidebar({ cwd, onSendCommand, settings, onSettingsChange }) {
+export default function Sidebar({ cwd, onSendCommand, onOpenFile, settings, onSettingsChange }) {
   const [activeSection, setActiveSection] = useState('explorer')
 
   return (
@@ -30,7 +30,7 @@ export default function Sidebar({ cwd, onSendCommand, settings, onSettingsChange
         {activeSection === 'explorer' && (
           <>
             <div className="sidebar__section-title">File Explorer</div>
-            <FileExplorer cwd={cwd} onSendCommand={onSendCommand} />
+            <FileExplorer cwd={cwd} onOpenFile={onOpenFile} />
           </>
         )}
         {activeSection === 'commands' && (
