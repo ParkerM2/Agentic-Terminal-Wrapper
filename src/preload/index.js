@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // File System
+  setRoot: (rootPath) => ipcRenderer.invoke('fs:set-root', { rootPath }),
   listDir: (dirPath) => ipcRenderer.invoke('fs:list-dir', { dirPath }),
   readFile: (filePath) => ipcRenderer.invoke('fs:read-file', { filePath }),
   writeFile: (filePath, content) => ipcRenderer.invoke('fs:write-file', { filePath, content }),
@@ -28,6 +29,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('fs:changed', handler)
     return () => ipcRenderer.removeListener('fs:changed', handler)
   },
+
+  // Settings Persistence
+  loadSettings: () => ipcRenderer.invoke('settings:load'),
+  saveSettings: (settings) => ipcRenderer.invoke('settings:save', { settings }),
+
+  // System Info
+  getHomePath: () => ipcRenderer.invoke('app:get-home-path'),
 
   // Clipboard
   readClipboardImage: () => ipcRenderer.invoke('clipboard:read-image'),

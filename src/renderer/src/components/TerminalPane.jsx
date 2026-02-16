@@ -1,11 +1,12 @@
 import React, { useRef, useEffect } from 'react'
 import { useTerminal } from '../hooks/useTerminal'
 
-export default function TerminalPane({ pane, onClose, cwd, canClose, onActivate }) {
+export default function TerminalPane({ pane, onClose, cwd, canClose, onActivate, fontSize }) {
   const containerRef = useRef(null)
   const { fit, focus } = useTerminal(pane.ptyId, containerRef, {
     cwd,
-    autoStart: false
+    autoStart: false,
+    fontSize
   })
 
   useEffect(() => {
