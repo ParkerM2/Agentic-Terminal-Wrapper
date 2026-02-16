@@ -50,11 +50,22 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
   const [loadingFiles, setLoadingFiles] = useState({})
   const [modifiedFiles, setModifiedFiles] = useState(new Set())
   const debounceTimers = useRef({})
+  const loadedFilesRef = useRef(new Set())
 
   // Load file content when a new file is opened
   useEffect(() => {
+    const currentIds = new Set(openFiles.map(f => f.id))
+
+    // Clean up removed files
+    for (const id of loadedFilesRef.current) {
+      if (!currentIds.has(id)) {
+        loadedFilesRef.current.delete(id)
+      }
+    }
+
     for (const file of openFiles) {
-      if (fileContents[file.id] === undefined && !loadingFiles[file.id]) {
+      if (!loadedFilesRef.current.has(file.id)) {
+        loadedFilesRef.current.add(file.id)
         setLoadingFiles(prev => ({ ...prev, [file.id]: true }))
         window.electronAPI.readFile(file.path).then(({ content, error }) => {
           if (!error && content !== null) {
@@ -66,17 +77,16 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
         })
       }
     }
-  }, [openFiles]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [openFiles])
 
   // Watch for external file changes and reload
   useEffect(() => {
-    const unsub = window.electronAPI.onFsChanged(({ filename }) => {
-      if (!filename) return
+    const unsub = window.electronAPI.onFsChanged(({ dirPath, filename }) => {
+      if (!filename || !dirPath) return
+      const changedPath = (dirPath + '/' + filename).replace(/\\/g, '/').toLowerCase()
       for (const file of openFiles) {
-        // If the changed file matches an open file (by name ending), reload it
-        const normalizedFilename = filename.replace(/\\/g, '/')
-        const normalizedPath = file.path.replace(/\\/g, '/')
-        if (normalizedPath.endsWith(normalizedFilename) && !modifiedFiles.has(file.id)) {
+        const normalizedPath = file.path.replace(/\\/g, '/').toLowerCase()
+        if (normalizedPath === changedPath && !modifiedFiles.has(file.id)) {
           window.electronAPI.readFile(file.path).then(({ content, error }) => {
             if (!error && content !== null) {
               setFileContents(prev => ({ ...prev, [file.id]: content }))

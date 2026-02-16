@@ -5,8 +5,8 @@ import Settings from './Settings'
 
 const SECTIONS = [
   { id: 'explorer', icon: '\u{1F4C1}', label: 'Explorer' },
-  { id: 'commands', icon: '\u{2699}', label: 'Commands' },
-  { id: 'settings', icon: '\u{1F527}', label: 'Settings' }
+  { id: 'commands', icon: '\u26A1', label: 'Commands' },
+  { id: 'settings', icon: '\u2699', label: 'Settings' }
 ]
 
 export default function Sidebar({ cwd, onSendCommand, onOpenFile, settings, onSettingsChange }) {
@@ -22,7 +22,7 @@ export default function Sidebar({ cwd, onSendCommand, onOpenFile, settings, onSe
             onClick={() => setActiveSection(section.id)}
             title={section.label}
           >
-            {section.id === 'explorer' ? '📁' : section.id === 'commands' ? '⚡' : '⚙'}
+            {section.icon}
           </button>
         ))}
       </div>

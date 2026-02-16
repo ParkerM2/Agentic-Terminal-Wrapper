@@ -747,3 +747,55 @@ html, body, #root {
 [data-panel-group-direction="vertical"] > [data-resize-handle-id][data-resize-handle-active] {
   background: var(--accent-blue);
 }
+
+/* --- Error Boundary --- */
+.error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg-primary);
+  color: var(--fg-primary);
+}
+
+.error-boundary__content {
+  text-align: center;
+  max-width: 500px;
+  padding: 32px;
+}
+
+.error-boundary__title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--accent-red);
+}
+
+.error-boundary__message {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+  color: var(--fg-secondary);
+}
+
+.error-boundary__btn {
+  background: var(--accent-blue);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 24px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.error-boundary__btn:hover {
+  opacity: 0.85;
+}
