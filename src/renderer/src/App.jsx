@@ -1,46 +1,43 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Panel, Group, Separator } from 'react-resizable-panels'
 import TabBar from './components/TabBar'
 import Sidebar from './components/Sidebar'
 import PaneContainer from './components/PaneContainer'
 import InputArea from './components/InputArea'
 import EditorPanel from './components/EditorPanel'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const TAB_COLORS = [
   '#7aa2f7', '#bb9af7', '#9ece6a', '#e0af68',
   '#f7768e', '#7dcfff', '#ff9e64', '#73daca'
 ]
 
-let nextTabId = 1
-let nextPaneId = 1
-
-function createTab(name, cwd) {
-  const id = `tab-${nextTabId++}`
+function createTab(name, colorIndex = 0) {
   return {
-    id,
-    name: name || `Project ${nextTabId - 1}`,
-    color: TAB_COLORS[(nextTabId - 2) % TAB_COLORS.length],
-    cwd: cwd || null,
+    id: crypto.randomUUID(),
+    name: name || 'Project',
+    color: TAB_COLORS[colorIndex % TAB_COLORS.length],
+    cwd: null,
     panes: [createPane()]
   }
 }
 
 function createPane() {
   return {
-    id: `pane-${nextPaneId++}`,
-    ptyId: `pty-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    id: crypto.randomUUID(),
+    ptyId: `pty-${crypto.randomUUID()}`
   }
 }
 
 export default function App() {
   const [tabs, setTabs] = useState([createTab('Claude')])
   const [activeTabId, setActiveTabId] = useState(tabs[0].id)
-  const [sidebarPosition, setSidebarPosition] = useState('left')
   const [settings, setSettings] = useState({
     sidebarPosition: 'left',
     fontSize: 14
   })
   const [activePaneId, setActivePaneId] = useState(null)
+  const settingsLoadedRef = useRef(false)
 
   // Editor state
   const [openFiles, setOpenFiles] = useState([])
@@ -50,9 +47,11 @@ export default function App() {
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0]
 
   const handleAddTab = useCallback(() => {
-    const tab = createTab()
-    setTabs(prev => [...prev, tab])
-    setActiveTabId(tab.id)
+    setTabs(prev => {
+      const tab = createTab(null, prev.length)
+      setActiveTabId(tab.id)
+      return [...prev, tab]
+    })
   }, [])
 
   const handleCloseTab = useCallback((tabId) => {
@@ -137,9 +136,6 @@ export default function App() {
 
   const handleSettingsChange = useCallback((key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }))
-    if (key === 'sidebarPosition') {
-      setSidebarPosition(value)
-    }
   }, [])
 
   const toggleEditor = useCallback(() => {
@@ -176,7 +172,27 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleAddTab, handleCloseTab, handleSplitH, handleSplitV, activeTabId, toggleEditor])
 
+  // Load settings on mount
+  useEffect(() => {
+    window.electronAPI.loadSettings().then((saved) => {
+      if (saved) {
+        setSettings(prev => ({ ...prev, ...saved }))
+      }
+      settingsLoadedRef.current = true
+    })
+  }, [])
+
+  // Save settings on change (debounced, skip initial load)
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return
+    const timer = setTimeout(() => {
+      window.electronAPI.saveSettings(settings)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [settings])
+
   return (
+    <ErrorBoundary>
     <div className="app-layout">
       <div className="title-bar">
         <span className="title-bar__label">CLAUDE TERMINAL</span>
@@ -193,7 +209,7 @@ export default function App() {
         onAddTab={handleAddTab}
         onCloseTab={handleCloseTab}
       />
-      <div className={`app-body ${sidebarPosition === 'right' ? 'app-body--sidebar-right' : ''}`}>
+      <div className={`app-body ${settings.sidebarPosition === 'right' ? 'app-body--sidebar-right' : ''}`}>
         <Sidebar
           cwd={activeTab.cwd}
           onSendCommand={handleSendToTerminal}
@@ -236,6 +252,8 @@ export default function App() {
                     onClosePane={handleClosePane}
                     cwd={activeTab.cwd}
                     onPaneActivate={setActivePaneId}
+                    fontSize={settings.fontSize}
+                    direction={activeTab.splitDirection}
                   />
                 </Panel>
               </Group>
@@ -245,6 +263,8 @@ export default function App() {
                 onClosePane={handleClosePane}
                 cwd={activeTab.cwd}
                 onPaneActivate={setActivePaneId}
+                fontSize={settings.fontSize}
+                direction={activeTab.splitDirection}
               />
             )}
           </div>
@@ -254,5 +274,6 @@ export default function App() {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   )
 }

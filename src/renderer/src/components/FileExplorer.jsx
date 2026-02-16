@@ -59,6 +59,7 @@ export default function FileExplorer({ cwd, onOpenFile }) {
   const [rootPath, setRootPath] = useState('')
   const [pathInput, setPathInput] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [homePath, setHomePath] = useState(null)
   const watchIdRef = useRef('file-explorer-watcher')
   const debounceRef = useRef(null)
 
@@ -69,10 +70,18 @@ export default function FileExplorer({ cwd, onOpenFile }) {
     setRootPath(dirPath)
   }, [])
 
-  // Initial load + set up watcher
+  // Load home path on mount
   useEffect(() => {
-    const defaultPath = cwd || 'C:\\Users\\Parke'
+    window.electronAPI.getHomePath().then((hp) => setHomePath(hp))
+  }, [])
+
+  // Initial load + set up watcher once homePath is resolved
+  useEffect(() => {
+    if (homePath === null) return
+
+    const defaultPath = cwd || homePath
     setPathInput(defaultPath)
+    window.electronAPI.setRoot(defaultPath)
     loadDir(defaultPath)
 
     // Start watching
@@ -96,11 +105,12 @@ export default function FileExplorer({ cwd, onOpenFile }) {
       window.electronAPI.unwatchDir(watchId)
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [cwd, loadDir])
+  }, [cwd, homePath, loadDir])
 
   // When path changes via form, update the watcher
   const handlePathSubmit = (e) => {
     e.preventDefault()
+    window.electronAPI.setRoot(pathInput)
     loadDir(pathInput)
 
     // Re-watch the new path

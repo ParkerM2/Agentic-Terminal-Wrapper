@@ -29,11 +29,9 @@ const THEME = {
   brightWhite: '#c0caf5'
 }
 
-export function useTerminal(ptyId, containerRef, { cwd, autoStart } = {}) {
+export function useTerminal(ptyId, containerRef, { cwd, autoStart, fontSize } = {}) {
   const termRef = useRef(null)
   const fitAddonRef = useRef(null)
-  const cleanupRef = useRef(null)
-  const initializedRef = useRef(false)
 
   const writeToPty = useCallback((data) => {
     if (ptyId) {
@@ -41,14 +39,16 @@ export function useTerminal(ptyId, containerRef, { cwd, autoStart } = {}) {
     }
   }, [ptyId])
 
+  const fontSizeRef = useRef(fontSize || 14)
+  fontSizeRef.current = fontSize || 14
+
   useEffect(() => {
-    if (!containerRef.current || !ptyId || initializedRef.current) return
-    initializedRef.current = true
+    if (!containerRef.current || !ptyId) return
 
     const term = new Terminal({
       theme: THEME,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
-      fontSize: 14,
+      fontSize: fontSizeRef.current,
       lineHeight: 1.2,
       cursorBlink: true,
       cursorStyle: 'bar',
@@ -123,22 +123,28 @@ export function useTerminal(ptyId, containerRef, { cwd, autoStart } = {}) {
     })
     resizeObserver.observe(containerRef.current)
 
-    cleanupRef.current = () => {
+    return () => {
       resizeObserver.disconnect()
       unsubData()
       unsubExit()
       term.dispose()
       window.electronAPI.ptyKill({ id: ptyId })
     }
-
-    return () => {
-      if (cleanupRef.current) {
-        cleanupRef.current()
-        cleanupRef.current = null
-      }
-      initializedRef.current = false
-    }
   }, [ptyId, containerRef, cwd, autoStart])
+
+  // Update font size without recreating terminal/PTY
+  useEffect(() => {
+    const term = termRef.current
+    if (term) {
+      term.options.fontSize = fontSize || 14
+      try {
+        fitAddonRef.current?.fit()
+        if (ptyId) {
+          window.electronAPI.ptyResize({ id: ptyId, cols: term.cols, rows: term.rows })
+        }
+      } catch {}
+    }
+  }, [fontSize, ptyId])
 
   const fit = useCallback(() => {
     if (fitAddonRef.current) {

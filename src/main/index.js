@@ -5,6 +5,24 @@ const os = require('os')
 
 const pty = require('node-pty')
 
+// --- Path Validation ---
+// Allowlist of root paths the renderer is permitted to access.
+// The renderer must register roots via fs:set-root before fs operations work.
+const allowedRoots = new Set()
+
+function isPathAllowed(targetPath) {
+  if (allowedRoots.size === 0) return true // No roots registered = unrestricted (backwards compat on startup)
+  const resolved = path.resolve(targetPath)
+  const normalized = resolved.toLowerCase()
+  for (const root of allowedRoots) {
+    const normalizedRoot = path.resolve(root).toLowerCase()
+    if (normalized === normalizedRoot || normalized.startsWith(normalizedRoot + path.sep)) {
+      return true
+    }
+  }
+  return false
+}
+
 // --- PTY Manager ---
 class PtyManager {
   constructor() {
@@ -93,6 +111,10 @@ function createWindow() {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // sandbox: false is required for node-pty native module access.
+      // This disables Chromium's renderer sandbox but contextIsolation + no nodeIntegration
+      // still prevents direct Node.js access from the renderer. All native access goes
+      // through the preload bridge with validated IPC handlers.
       sandbox: false
     }
   })
@@ -136,8 +158,18 @@ ipcMain.handle('pty:kill', (event, { id }) => {
   return { success: true }
 })
 
+// --- File System Path Root Registration ---
+ipcMain.handle('fs:set-root', (event, { rootPath }) => {
+  const resolved = path.resolve(rootPath)
+  allowedRoots.add(resolved)
+  return { success: true }
+})
+
 // File System IPC Handlers
 ipcMain.handle('fs:list-dir', async (event, { dirPath }) => {
+  if (!isPathAllowed(dirPath)) {
+    return []
+  }
   try {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
     const results = []
@@ -193,8 +225,11 @@ ipcMain.handle('fs:unwatch', (event, { id }) => {
   return { success: true }
 })
 
-// File Read IPC Handler
+// File Read/Write IPC Handlers (with path validation)
 ipcMain.handle('fs:read-file', async (event, { filePath }) => {
+  if (!isPathAllowed(filePath)) {
+    return { content: null, error: 'Access denied: path outside allowed roots' }
+  }
   try {
     const content = await fs.promises.readFile(filePath, 'utf-8')
     return { content, error: null }
@@ -204,12 +239,45 @@ ipcMain.handle('fs:read-file', async (event, { filePath }) => {
 })
 
 ipcMain.handle('fs:write-file', async (event, { filePath, content }) => {
+  if (!isPathAllowed(filePath)) {
+    return { error: 'Access denied: path outside allowed roots' }
+  }
   try {
     await fs.promises.writeFile(filePath, content, 'utf-8')
     return { error: null }
   } catch (err) {
     return { error: err.message }
   }
+})
+
+// --- Settings Persistence ---
+function getSettingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json')
+}
+
+ipcMain.handle('settings:load', async () => {
+  try {
+    const raw = await fs.promises.readFile(getSettingsPath(), 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    return {}
+  }
+})
+
+ipcMain.handle('settings:save', async (event, { settings }) => {
+  try {
+    const dir = path.dirname(getSettingsPath())
+    await fs.promises.mkdir(dir, { recursive: true })
+    await fs.promises.writeFile(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf-8')
+    return { error: null }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+// --- System Info ---
+ipcMain.handle('app:get-home-path', () => {
+  return os.homedir()
 })
 
 // Clipboard IPC Handlers
@@ -232,6 +300,20 @@ ipcMain.handle('app:save-temp-image', async (event, { dataURL }) => {
   return { filePath }
 })
 
+// --- Temp Image Cleanup ---
+async function cleanupTempImages() {
+  try {
+    const tmpDir = os.tmpdir()
+    const entries = await fs.promises.readdir(tmpDir)
+    const pasteFiles = entries.filter(f => f.startsWith('claude-paste-'))
+    await Promise.allSettled(
+      pasteFiles.map(f => fs.promises.unlink(path.join(tmpDir, f)))
+    )
+  } catch {
+    // Best-effort cleanup — ignore errors
+  }
+}
+
 // Window control IPC
 ipcMain.on('window:minimize', () => mainWindow?.minimize())
 ipcMain.on('window:maximize', () => {
@@ -245,10 +327,11 @@ ipcMain.on('window:close', () => mainWindow?.close())
 
 app.whenReady().then(createWindow)
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
   ptyManager.killAll()
   for (const watcher of activeWatchers.values()) watcher.close()
   activeWatchers.clear()
+  await cleanupTempImages()
   app.quit()
 })
 
