@@ -4,6 +4,8 @@ const fs = require('fs')
 const os = require('os')
 
 const pty = require('node-pty')
+const { registerGitHandlers } = require('./gitHandlers')
+const { ClaudeScanner } = require('./claudeScanner')
 
 // --- Path Validation ---
 // Allowlist of root paths the renderer is permitted to access.
@@ -94,6 +96,9 @@ class PtyManager {
   }
 }
 
+// --- Claude Scanners ---
+const claudeScanners = new Map()
+
 // --- App ---
 const ptyManager = new PtyManager()
 let mainWindow = null
@@ -131,16 +136,30 @@ function createWindow() {
 ipcMain.handle('pty:create', (event, { id, shell, cwd, args, cols, rows }) => {
   // Kill existing PTY with same ID if it exists (StrictMode remount)
   ptyManager.kill(id)
+  claudeScanners.delete(id)
+
   const ptyProcess = ptyManager.create(id, { shell, cwd, args, cols, rows })
+
+  // Create Claude scanner for this PTY
+  const scanner = new ClaudeScanner(id, (channel, payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, payload)
+    }
+  })
+  claudeScanners.set(id, scanner)
+
   ptyProcess.onData((data) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('pty:data', { id, data })
     }
+    // Side-channel scan — never blocks pty:data
+    scanner.scan(data)
   })
   ptyProcess.onExit(({ exitCode }) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('pty:exit', { id, exitCode })
     }
+    claudeScanners.delete(id)
   })
   return { success: true }
 })
@@ -155,6 +174,7 @@ ipcMain.on('pty:resize', (event, { id, cols, rows }) => {
 
 ipcMain.handle('pty:kill', (event, { id }) => {
   ptyManager.kill(id)
+  claudeScanners.delete(id)
   return { success: true }
 })
 
@@ -324,6 +344,9 @@ ipcMain.on('window:maximize', () => {
   }
 })
 ipcMain.on('window:close', () => mainWindow?.close())
+
+// --- Git IPC Handlers ---
+registerGitHandlers(ipcMain, isPathAllowed)
 
 app.whenReady().then(createWindow)
 

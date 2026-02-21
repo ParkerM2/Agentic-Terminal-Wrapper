@@ -1,15 +1,17 @@
 import React, { useState } from 'react'
 import FileExplorer from './FileExplorer'
 import CommandList from './CommandList'
+import GitStatusPanel from './GitStatusPanel'
 import Settings from './Settings'
 
 const SECTIONS = [
   { id: 'explorer', icon: '\u{1F4C1}', label: 'Explorer' },
+  { id: 'git', icon: '\u{1F500}', label: 'Git' },
   { id: 'commands', icon: '\u26A1', label: 'Commands' },
   { id: 'settings', icon: '\u2699', label: 'Settings' }
 ]
 
-export default function Sidebar({ cwd, onSendCommand, onOpenFile, settings, onSettingsChange }) {
+export default function Sidebar({ cwd, onSendCommand, onOpenFile, onOpenDiff, settings, onSettingsChange }) {
   const [activeSection, setActiveSection] = useState('explorer')
 
   return (
@@ -31,6 +33,12 @@ export default function Sidebar({ cwd, onSendCommand, onOpenFile, settings, onSe
           <>
             <div className="sidebar__section-title">File Explorer</div>
             <FileExplorer cwd={cwd} onOpenFile={onOpenFile} />
+          </>
+        )}
+        {activeSection === 'git' && (
+          <>
+            <div className="sidebar__section-title">Git Status</div>
+            <GitStatusPanel cwd={cwd} onOpenDiff={onOpenDiff} />
           </>
         )}
         {activeSection === 'commands' && (

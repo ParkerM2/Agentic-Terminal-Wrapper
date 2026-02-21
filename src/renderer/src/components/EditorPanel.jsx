@@ -1,54 +1,24 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { tokyoNightStorm } from '@uiw/codemirror-theme-tokyo-night-storm'
-import { javascript } from '@codemirror/lang-javascript'
-import { python } from '@codemirror/lang-python'
-import { json } from '@codemirror/lang-json'
-import { markdown } from '@codemirror/lang-markdown'
-import { html } from '@codemirror/lang-html'
-import { css } from '@codemirror/lang-css'
-import { cpp } from '@codemirror/lang-cpp'
-import { java } from '@codemirror/lang-java'
-import { rust } from '@codemirror/lang-rust'
 import { EditorView } from '@codemirror/view'
-
-const LANG_MAP = {
-  js: () => javascript({ jsx: true }),
-  jsx: () => javascript({ jsx: true }),
-  ts: () => javascript({ jsx: true, typescript: true }),
-  tsx: () => javascript({ jsx: true, typescript: true }),
-  mjs: () => javascript(),
-  cjs: () => javascript(),
-  py: () => python(),
-  json: () => json(),
-  md: () => markdown(),
-  markdown: () => markdown(),
-  html: () => html(),
-  htm: () => html(),
-  css: () => css(),
-  scss: () => css(),
-  c: () => cpp(),
-  cpp: () => cpp(),
-  h: () => cpp(),
-  hpp: () => cpp(),
-  java: () => java(),
-  rs: () => rust(),
-}
-
-function getLanguageExtension(filePath) {
-  const ext = filePath.split('.').pop()?.toLowerCase()
-  const factory = LANG_MAP[ext]
-  return factory ? factory() : []
-}
+import { Panel, Group, Separator } from 'react-resizable-panels'
+import { getLanguageExtension, isMarkdownFile } from '../utils/languages'
+import { renderMarkdown } from '../utils/markdownRender'
+import DiffView from './DiffView'
 
 function getFileName(filePath) {
   return filePath.split(/[\\/]/).pop()
 }
 
-export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onCloseFile, onUpdateContent }) {
+export default function EditorPanel({
+  openFiles, activeFileId, onSelectFile, onCloseFile, onUpdateContent,
+  cwd, editorSplit, secondaryFileId, onSelectSecondaryFile
+}) {
   const [fileContents, setFileContents] = useState({})
   const [loadingFiles, setLoadingFiles] = useState({})
   const [modifiedFiles, setModifiedFiles] = useState(new Set())
+  const [previewVisible, setPreviewVisible] = useState(false)
   const debounceTimers = useRef({})
   const loadedFilesRef = useRef(new Set())
 
@@ -121,6 +91,11 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
   const activeFile = openFiles.find(f => f.id === activeFileId)
   const activeContent = activeFile ? (fileContents[activeFile.id] ?? '') : ''
   const isLoading = activeFile ? loadingFiles[activeFile.id] : false
+  const isDiffMode = activeFile?.mode === 'diff'
+  const isMd = activeFile && isMarkdownFile(activeFile.path)
+
+  const secondaryFile = editorSplit ? openFiles.find(f => f.id === secondaryFileId) : null
+  const secondaryContent = secondaryFile ? (fileContents[secondaryFile.id] ?? '') : ''
 
   if (openFiles.length === 0) {
     return (
@@ -129,6 +104,41 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
           Click a file in the explorer to open it
         </div>
       </div>
+    )
+  }
+
+  const renderEditor = (file, content, isSecondary) => {
+    if (!file) return null
+    const fileLoading = loadingFiles[file.id]
+    if (fileLoading) return <div className="editor-panel__empty">Loading...</div>
+
+    if (file.mode === 'diff') {
+      return <DiffView filePath={file.path} cwd={cwd} />
+    }
+
+    return (
+      <CodeMirror
+        key={file.id}
+        value={content}
+        theme={tokyoNightStorm}
+        extensions={[
+          getLanguageExtension(file.path),
+          EditorView.lineWrapping,
+        ]}
+        onChange={(value) => handleChange(file.id, file.path, value)}
+        basicSetup={{
+          lineNumbers: true,
+          highlightActiveLineGutter: true,
+          highlightActiveLine: true,
+          foldGutter: true,
+          bracketMatching: true,
+          closeBrackets: true,
+          autocompletion: true,
+          indentOnInput: true,
+          searchKeymap: true,
+        }}
+        style={{ height: '100%', overflow: 'auto' }}
+      />
     )
   }
 
@@ -143,6 +153,7 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
           >
             <span className="editor-tab__name">
               {modifiedFiles.has(file.id) && <span className="editor-tab__dot" />}
+              {file.mode === 'diff' && <span style={{ color: 'var(--accent-yellow)', marginRight: 4 }}>D</span>}
               {getFileName(file.path)}
             </span>
             <span
@@ -153,33 +164,46 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
             </span>
           </button>
         ))}
+        <div style={{ flex: 1 }} />
+        {isMd && !isDiffMode && (
+          <button
+            className={`pane-toolbar__btn ${previewVisible ? 'pane-toolbar__btn--active' : ''}`}
+            onClick={() => setPreviewVisible(prev => !prev)}
+            title="Toggle Markdown Preview"
+            style={{ fontSize: 11, height: 22 }}
+          >
+            Preview
+          </button>
+        )}
       </div>
       <div className="editor-panel__body">
         {isLoading ? (
           <div className="editor-panel__empty">Loading...</div>
+        ) : editorSplit && secondaryFile ? (
+          <Group direction="horizontal" style={{ height: '100%' }}>
+            <Panel defaultSize={50} minSize={20}>
+              {renderEditor(activeFile, activeContent, false)}
+            </Panel>
+            <Separator />
+            <Panel defaultSize={50} minSize={20}>
+              {renderEditor(secondaryFile, secondaryContent, true)}
+            </Panel>
+          </Group>
+        ) : isMd && previewVisible && !isDiffMode ? (
+          <Group direction="horizontal" style={{ height: '100%' }}>
+            <Panel defaultSize={50} minSize={20}>
+              {renderEditor(activeFile, activeContent, false)}
+            </Panel>
+            <Separator />
+            <Panel defaultSize={50} minSize={20}>
+              <div
+                className="markdown-preview"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(activeContent) }}
+              />
+            </Panel>
+          </Group>
         ) : activeFile ? (
-          <CodeMirror
-            key={activeFile.id}
-            value={activeContent}
-            theme={tokyoNightStorm}
-            extensions={[
-              getLanguageExtension(activeFile.path),
-              EditorView.lineWrapping,
-            ]}
-            onChange={(value) => handleChange(activeFile.id, activeFile.path, value)}
-            basicSetup={{
-              lineNumbers: true,
-              highlightActiveLineGutter: true,
-              highlightActiveLine: true,
-              foldGutter: true,
-              bracketMatching: true,
-              closeBrackets: true,
-              autocompletion: true,
-              indentOnInput: true,
-              searchKeymap: true,
-            }}
-            style={{ height: '100%', overflow: 'auto' }}
-          />
+          renderEditor(activeFile, activeContent, false)
         ) : null}
       </div>
     </div>

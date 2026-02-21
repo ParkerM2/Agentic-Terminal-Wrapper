@@ -41,6 +41,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readClipboardImage: () => ipcRenderer.invoke('clipboard:read-image'),
   saveTempImage: (dataURL) => ipcRenderer.invoke('app:save-temp-image', { dataURL }),
 
+  // Git
+  gitIsRepo: (cwd) => ipcRenderer.invoke('git:is-repo', { cwd }),
+  gitStatus: (cwd) => ipcRenderer.invoke('git:status', { cwd }),
+  gitDiff: (cwd, filePath, staged) => ipcRenderer.invoke('git:diff', { cwd, filePath, staged }),
+  gitDiffFile: (cwd, filePath) => ipcRenderer.invoke('git:diff-file', { cwd, filePath }),
+  gitStage: (cwd, filePath) => ipcRenderer.invoke('git:stage', { cwd, filePath }),
+  gitUnstage: (cwd, filePath) => ipcRenderer.invoke('git:unstage', { cwd, filePath }),
+
+  // Claude Events
+  onClaudeSessionChange: (callback) => {
+    const handler = (_event, data) => callback(data)
+    ipcRenderer.on('claude:session-change', handler)
+    return () => ipcRenderer.removeListener('claude:session-change', handler)
+  },
+  onClaudeCostUpdate: (callback) => {
+    const handler = (_event, data) => callback(data)
+    ipcRenderer.on('claude:cost-update', handler)
+    return () => ipcRenderer.removeListener('claude:cost-update', handler)
+  },
+  onClaudeModelUpdate: (callback) => {
+    const handler = (_event, data) => callback(data)
+    ipcRenderer.on('claude:model-update', handler)
+    return () => ipcRenderer.removeListener('claude:model-update', handler)
+  },
+
   // Window Controls
   windowMinimize: () => ipcRenderer.send('window:minimize'),
   windowMaximize: () => ipcRenderer.send('window:maximize'),

@@ -36,6 +36,16 @@ export default function Settings({ settings, onChange }) {
         </div>
       </div>
       <div className="settings-group">
+        <div className="settings-group__label">Claude</div>
+        <div className="settings-option">
+          <span className="settings-option__label">Auto-start Claude</span>
+          <button
+            className={`settings-toggle ${settings.autoStartClaude ? 'settings-toggle--on' : ''}`}
+            onClick={() => onChange('autoStartClaude', !settings.autoStartClaude)}
+          />
+        </div>
+      </div>
+      <div className="settings-group">
         <div className="settings-group__label">About</div>
         <div className="settings-option" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
           <span className="settings-option__label">Claude Terminal v1.0.0</span>
