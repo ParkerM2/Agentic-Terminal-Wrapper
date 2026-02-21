@@ -2,7 +2,7 @@ import React from 'react'
 import { Panel, Group, Separator } from 'react-resizable-panels'
 import TerminalPane from './TerminalPane'
 
-export default function PaneContainer({ panes, onClosePane, cwd, onPaneActivate, direction, fontSize }) {
+export default function PaneContainer({ panes, onClosePane, cwd, onPaneActivate, direction, fontSize, autoStart, claudeState }) {
   if (panes.length === 0) {
     return (
       <div style={{
@@ -26,6 +26,8 @@ export default function PaneContainer({ panes, onClosePane, cwd, onPaneActivate,
         canClose={false}
         onActivate={() => onPaneActivate?.(panes[0].id)}
         fontSize={fontSize}
+        autoStart={autoStart}
+        claudeState={claudeState}
       />
     )
   }
@@ -43,6 +45,8 @@ export default function PaneContainer({ panes, onClosePane, cwd, onPaneActivate,
               canClose={panes.length > 1}
               onActivate={() => onPaneActivate?.(pane.id)}
               fontSize={fontSize}
+              autoStart={autoStart}
+              claudeState={claudeState}
             />
           </Panel>
         </React.Fragment>

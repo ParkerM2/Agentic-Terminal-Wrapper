@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar'
 import PaneContainer from './components/PaneContainer'
 import InputArea from './components/InputArea'
 import EditorPanel from './components/EditorPanel'
+import CommandPalette from './components/CommandPalette'
 import ErrorBoundary from './components/ErrorBoundary'
 
 const TAB_COLORS = [
@@ -34,7 +35,8 @@ export default function App() {
   const [activeTabId, setActiveTabId] = useState(tabs[0].id)
   const [settings, setSettings] = useState({
     sidebarPosition: 'left',
-    fontSize: 14
+    fontSize: 14,
+    autoStartClaude: false
   })
   const [activePaneId, setActivePaneId] = useState(null)
   const settingsLoadedRef = useRef(false)
@@ -43,8 +45,43 @@ export default function App() {
   const [openFiles, setOpenFiles] = useState([])
   const [activeFileId, setActiveFileId] = useState(null)
   const [editorVisible, setEditorVisible] = useState(false)
+  const [editorSplit, setEditorSplit] = useState(false)
+  const [secondaryFileId, setSecondaryFileId] = useState(null)
+
+  // Claude state — per-pane tracking
+  const [claudeState, setClaudeState] = useState({})
+
+  // Command palette
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0]
+
+  // --- Claude event listeners ---
+  useEffect(() => {
+    const unsubSession = window.electronAPI.onClaudeSessionChange(({ ptyId, active }) => {
+      setClaudeState(prev => ({
+        ...prev,
+        [ptyId]: { ...prev[ptyId], active }
+      }))
+    })
+    const unsubModel = window.electronAPI.onClaudeModelUpdate(({ ptyId, model }) => {
+      setClaudeState(prev => ({
+        ...prev,
+        [ptyId]: { ...prev[ptyId], model }
+      }))
+    })
+    const unsubCost = window.electronAPI.onClaudeCostUpdate(({ ptyId, cost }) => {
+      setClaudeState(prev => ({
+        ...prev,
+        [ptyId]: { ...prev[ptyId], cost }
+      }))
+    })
+    return () => {
+      unsubSession()
+      unsubModel()
+      unsubCost()
+    }
+  }, [])
 
   const handleAddTab = useCallback(() => {
     setTabs(prev => {
@@ -102,8 +139,8 @@ export default function App() {
   const handleOpenFile = useCallback((entry) => {
     if (entry.type === 'directory') return
 
-    // Check if already open
-    const existing = openFiles.find(f => f.path === entry.path)
+    // Check if already open (same path and mode)
+    const existing = openFiles.find(f => f.path === entry.path && f.mode === (entry.mode || undefined))
     if (existing) {
       setActiveFileId(existing.id)
       setEditorVisible(true)
@@ -111,11 +148,23 @@ export default function App() {
     }
 
     const fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-    const newFile = { id: fileId, path: entry.path, name: entry.name }
+    const newFile = { id: fileId, path: entry.path, name: entry.name, mode: entry.mode }
     setOpenFiles(prev => [...prev, newFile])
     setActiveFileId(fileId)
     setEditorVisible(true)
   }, [openFiles])
+
+  // Open a diff for a git file
+  const handleOpenDiff = useCallback((gitFile) => {
+    if (!activeTab.cwd) return
+    const fullPath = activeTab.cwd.replace(/\\/g, '/') + '/' + gitFile.path
+    handleOpenFile({
+      path: fullPath,
+      name: gitFile.path.split('/').pop(),
+      type: 'file',
+      mode: 'diff'
+    })
+  }, [activeTab.cwd, handleOpenFile])
 
   const handleCloseFile = useCallback((fileId) => {
     setOpenFiles(prev => {
@@ -130,9 +179,13 @@ export default function App() {
           setEditorVisible(false)
         }
       }
+      if (fileId === secondaryFileId) {
+        setSecondaryFileId(null)
+        setEditorSplit(false)
+      }
       return next
     })
-  }, [activeFileId])
+  }, [activeFileId, secondaryFileId])
 
   const handleSettingsChange = useCallback((key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }))
@@ -141,6 +194,26 @@ export default function App() {
   const toggleEditor = useCallback(() => {
     setEditorVisible(prev => !prev)
   }, [])
+
+  // Command palette action handler
+  const handlePaletteAction = useCallback((action) => {
+    switch (action) {
+      case 'splitH': handleSplitH(); break
+      case 'splitV': handleSplitV(); break
+      case 'toggleEditor': toggleEditor(); break
+      case 'addTab': handleAddTab(); break
+      case 'openClaudeMd': {
+        if (activeTab.cwd) {
+          handleOpenFile({
+            path: activeTab.cwd.replace(/\\/g, '/') + '/CLAUDE.md',
+            name: 'CLAUDE.md',
+            type: 'file'
+          })
+        }
+        break
+      }
+    }
+  }, [handleSplitH, handleSplitV, toggleEditor, handleAddTab, activeTab.cwd, handleOpenFile])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -165,6 +238,11 @@ export default function App() {
       if (e.ctrlKey && e.key === 'e' && !e.shiftKey) {
         e.preventDefault()
         toggleEditor()
+      }
+      // Ctrl+Shift+P: Command palette
+      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+        e.preventDefault()
+        setCommandPaletteOpen(prev => !prev)
       }
     }
 
@@ -191,6 +269,17 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [settings])
 
+  const paneContainerProps = {
+    panes: activeTab.panes,
+    onClosePane: handleClosePane,
+    cwd: activeTab.cwd,
+    onPaneActivate: setActivePaneId,
+    fontSize: settings.fontSize,
+    direction: activeTab.splitDirection,
+    autoStart: settings.autoStartClaude,
+    claudeState
+  }
+
   return (
     <ErrorBoundary>
     <div className="app-layout">
@@ -214,6 +303,7 @@ export default function App() {
           cwd={activeTab.cwd}
           onSendCommand={handleSendToTerminal}
           onOpenFile={handleOpenFile}
+          onOpenDiff={handleOpenDiff}
           settings={settings}
           onSettingsChange={handleSettingsChange}
         />
@@ -224,6 +314,13 @@ export default function App() {
             </button>
             <button className="pane-toolbar__btn" onClick={handleSplitV} title="Split Vertical (Ctrl+Shift+_)">
               <span>&#x2500;</span> Split V
+            </button>
+            <button
+              className="pane-toolbar__btn"
+              onClick={() => setCommandPaletteOpen(true)}
+              title="Command Palette (Ctrl+Shift+P)"
+            >
+              &#x2318; Commands
             </button>
             <div style={{ flex: 1 }} />
             <button
@@ -243,29 +340,19 @@ export default function App() {
                     activeFileId={activeFileId}
                     onSelectFile={setActiveFileId}
                     onCloseFile={handleCloseFile}
+                    cwd={activeTab.cwd}
+                    editorSplit={editorSplit}
+                    secondaryFileId={secondaryFileId}
+                    onSelectSecondaryFile={setSecondaryFileId}
                   />
                 </Panel>
                 <Separator />
                 <Panel defaultSize={50} minSize={15}>
-                  <PaneContainer
-                    panes={activeTab.panes}
-                    onClosePane={handleClosePane}
-                    cwd={activeTab.cwd}
-                    onPaneActivate={setActivePaneId}
-                    fontSize={settings.fontSize}
-                    direction={activeTab.splitDirection}
-                  />
+                  <PaneContainer {...paneContainerProps} />
                 </Panel>
               </Group>
             ) : (
-              <PaneContainer
-                panes={activeTab.panes}
-                onClosePane={handleClosePane}
-                cwd={activeTab.cwd}
-                onPaneActivate={setActivePaneId}
-                fontSize={settings.fontSize}
-                direction={activeTab.splitDirection}
-              />
+              <PaneContainer {...paneContainerProps} />
             )}
           </div>
           <InputArea
@@ -273,6 +360,12 @@ export default function App() {
           />
         </div>
       </div>
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onSendToTerminal={handleSendToTerminal}
+        onAction={handlePaletteAction}
+      />
     </div>
     </ErrorBoundary>
   )
