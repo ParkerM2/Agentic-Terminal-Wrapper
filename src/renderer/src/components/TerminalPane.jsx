@@ -1,13 +1,16 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import { useTerminal } from '../hooks/useTerminal'
+import ContextMenu from './ContextMenu'
 
 export default function TerminalPane({ pane, onClose, cwd, canClose, onActivate, fontSize, autoStart, claudeState }) {
   const containerRef = useRef(null)
-  const { fit, focus } = useTerminal(pane.ptyId, containerRef, {
+  const { termRef, writeToPty, fit, focus } = useTerminal(pane.ptyId, containerRef, {
     cwd,
     autoStart,
     fontSize
   })
+
+  const [ctxMenu, setCtxMenu] = useState({ visible: false, x: 0, y: 0, hasSelection: false })
 
   useEffect(() => {
     const timer = setTimeout(() => focus(), 200)
@@ -18,6 +21,41 @@ export default function TerminalPane({ pane, onClose, cwd, canClose, onActivate,
     focus()
     onActivate?.()
   }
+
+  const handleContextMenu = useCallback((e) => {
+    e.preventDefault()
+    const term = termRef.current
+    const hasSelection = term ? term.hasSelection() : false
+    setCtxMenu({ visible: true, x: e.clientX, y: e.clientY, hasSelection })
+  }, [termRef])
+
+  const closeMenu = useCallback(() => {
+    setCtxMenu((prev) => ({ ...prev, visible: false }))
+  }, [])
+
+  const handleCopy = useCallback(() => {
+    const sel = termRef.current?.getSelection()
+    if (sel) window.electronAPI.clipboardWriteText(sel)
+    termRef.current?.clearSelection()
+    closeMenu()
+  }, [termRef, closeMenu])
+
+  const handlePaste = useCallback(() => {
+    window.electronAPI.clipboardReadText().then((text) => {
+      if (text) writeToPty(text)
+    })
+    closeMenu()
+  }, [writeToPty, closeMenu])
+
+  const handleSelectAll = useCallback(() => {
+    termRef.current?.selectAll()
+    closeMenu()
+  }, [termRef, closeMenu])
+
+  const handleClear = useCallback(() => {
+    termRef.current?.clear()
+    closeMenu()
+  }, [termRef, closeMenu])
 
   const cs = claudeState?.[pane.ptyId]
 
@@ -42,7 +80,18 @@ export default function TerminalPane({ pane, onClose, cwd, canClose, onActivate,
           )}
         </div>
       </div>
-      <div className="terminal-pane__body" ref={containerRef} />
+      <div className="terminal-pane__body" ref={containerRef} onContextMenu={handleContextMenu} />
+      <ContextMenu
+        x={ctxMenu.x}
+        y={ctxMenu.y}
+        visible={ctxMenu.visible}
+        hasSelection={ctxMenu.hasSelection}
+        onCopy={handleCopy}
+        onPaste={handlePaste}
+        onSelectAll={handleSelectAll}
+        onClear={handleClear}
+        onClose={closeMenu}
+      />
     </div>
   )
 }

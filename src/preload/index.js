@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getHomePath: () => ipcRenderer.invoke('app:get-home-path'),
 
   // Clipboard
+  clipboardWriteText: (text) => ipcRenderer.invoke('clipboard:write-text', { text }),
+  clipboardReadText: () => ipcRenderer.invoke('clipboard:read-text'),
   readClipboardImage: () => ipcRenderer.invoke('clipboard:read-image'),
   saveTempImage: (dataURL) => ipcRenderer.invoke('app:save-temp-image', { dataURL }),
 

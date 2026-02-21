@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { getIconClass } from 'atom-file-icons'
 
 function FileNode({ entry, depth, onSelect, refreshKey }) {
   const [expanded, setExpanded] = useState(false)
@@ -27,9 +28,9 @@ function FileNode({ entry, depth, onSelect, refreshKey }) {
     }
   }, [entry, expanded, loadChildren, onSelect])
 
-  const icon = entry.type === 'directory'
-    ? (expanded ? '📂' : '📁')
-    : '📄'
+  const iconClass = entry.type === 'directory'
+    ? getIconClass(entry.name, { colorMode: 'dark', isDir: true })
+    : getIconClass(entry.name, { colorMode: 'dark' })
 
   return (
     <>
@@ -38,7 +39,7 @@ function FileNode({ entry, depth, onSelect, refreshKey }) {
         style={{ paddingLeft: `${8 + depth * 16}px` }}
         onClick={handleClick}
       >
-        <span className="file-tree-node__icon">{icon}</span>
+        <span className={`file-tree-node__icon ${iconClass || ''}`} />
         <span className="file-tree-node__name">{entry.name}</span>
       </div>
       {expanded && children && children.map(child => (

@@ -1,11 +1,174 @@
 const { app, BrowserWindow, ipcMain, clipboard } = require('electron')
+const { execFile } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
 
 const pty = require('node-pty')
-const { registerGitHandlers } = require('./gitHandlers')
-const { ClaudeScanner } = require('./claudeScanner')
+
+// --- Claude Scanner ---
+// Side-channel scanner for PTY output. Detects Claude CLI session start/stop, model name, and cost.
+// Never blocks or modifies the PTY data stream.
+class ClaudeScanner {
+  constructor(ptyId, emitFn) {
+    this.ptyId = ptyId
+    this.emit = emitFn
+    this.buffer = ''
+    this.maxBuffer = 2048
+    this.active = false
+    this.model = null
+    this.cost = null
+  }
+
+  scan(data) {
+    this.buffer += data
+    if (this.buffer.length > this.maxBuffer) {
+      this.buffer = this.buffer.slice(-this.maxBuffer)
+    }
+
+    if (!this.active) {
+      if (
+        /Claude\s+(Code|[\d.]+)/i.test(this.buffer) ||
+        /\u256D/.test(data) && /claude/i.test(this.buffer)
+      ) {
+        this.active = true
+        this.emit('claude:session-change', { ptyId: this.ptyId, active: true })
+        this._checkModel()
+      }
+    }
+
+    if (this.active) {
+      this._checkModel()
+      this._checkCost()
+      this._checkExit(data)
+    }
+  }
+
+  _checkModel() {
+    const modelMatch = this.buffer.match(/(claude-[\w-]+[\d][\w-]*)/i)
+    if (modelMatch && modelMatch[1] !== this.model) {
+      this.model = modelMatch[1]
+      this.emit('claude:model-update', { ptyId: this.ptyId, model: this.model })
+    }
+  }
+
+  _checkCost() {
+    const costMatch = this.buffer.match(/\$(\d+\.\d{2,})/g)
+    if (costMatch) {
+      const latest = costMatch[costMatch.length - 1]
+      if (latest !== this.cost) {
+        this.cost = latest
+        this.emit('claude:cost-update', { ptyId: this.ptyId, cost: this.cost })
+      }
+    }
+  }
+
+  _checkExit(data) {
+    if (/\n[^\n]*[\$#>]\s*$/.test(data) && !/claude/i.test(data)) {
+      const recentChunk = this.buffer.slice(-200)
+      if (!/[\u256D\u2570\u2502\u2500]/.test(recentChunk) && !/Claude/i.test(recentChunk.slice(-80))) {
+        this.active = false
+        this.model = null
+        this.cost = null
+        this.emit('claude:session-change', { ptyId: this.ptyId, active: false })
+      }
+    }
+  }
+}
+
+// --- Git Handlers ---
+const GIT_ALLOWED_SUBCOMMANDS = new Set([
+  'status', 'diff', 'show', 'add', 'restore', 'rev-parse'
+])
+
+function runGit(args, cwd, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    if (!GIT_ALLOWED_SUBCOMMANDS.has(args[0])) {
+      return reject(new Error(`Git subcommand not allowed: ${args[0]}`))
+    }
+    execFile('git', args, { cwd, timeout, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) reject(new Error(stderr || err.message))
+      else resolve(stdout)
+    })
+  })
+}
+
+function parseStatusLine(line) {
+  if (line.length < 4) return null
+  const x = line[0]
+  const y = line[1]
+  const filePath = line.slice(3)
+  let status = 'modified'
+  if (x === '?' && y === '?') status = 'untracked'
+  else if (x === 'A' || y === 'A') status = 'added'
+  else if (x === 'D' || y === 'D') status = 'deleted'
+  else if (x === 'R' || y === 'R') status = 'renamed'
+  return { path: filePath, staged: x !== ' ' && x !== '?', status, x, y }
+}
+
+function registerGitHandlers(ipcMain, isPathAllowed) {
+  ipcMain.handle('git:is-repo', async (event, { cwd }) => {
+    try {
+      await runGit(['rev-parse', '--is-inside-work-tree'], cwd)
+      return { isRepo: true }
+    } catch {
+      return { isRepo: false }
+    }
+  })
+
+  ipcMain.handle('git:status', async (event, { cwd }) => {
+    try {
+      const output = await runGit(['status', '--porcelain=v1'], cwd)
+      const files = output.split('\n').filter(Boolean).map(parseStatusLine).filter(Boolean)
+      return { files, error: null }
+    } catch (err) {
+      return { files: [], error: err.message }
+    }
+  })
+
+  ipcMain.handle('git:diff', async (event, { cwd, filePath, staged }) => {
+    try {
+      const args = staged ? ['diff', '--cached', '--', filePath] : ['diff', '--', filePath]
+      const output = await runGit(args, cwd)
+      return { diff: output, error: null }
+    } catch (err) {
+      return { diff: '', error: err.message }
+    }
+  })
+
+  ipcMain.handle('git:diff-file', async (event, { cwd, filePath }) => {
+    try {
+      const output = await runGit(['show', `HEAD:${filePath}`], cwd)
+      return { content: output, error: null }
+    } catch (err) {
+      return { content: '', error: err.message }
+    }
+  })
+
+  ipcMain.handle('git:stage', async (event, { cwd, filePath }) => {
+    if (!isPathAllowed(path.resolve(cwd, filePath))) {
+      return { error: 'Access denied: path outside allowed roots' }
+    }
+    try {
+      await runGit(['add', '--', filePath], cwd)
+      return { error: null }
+    } catch (err) {
+      return { error: err.message }
+    }
+  })
+
+  ipcMain.handle('git:unstage', async (event, { cwd, filePath }) => {
+    if (!isPathAllowed(path.resolve(cwd, filePath))) {
+      return { error: 'Access denied: path outside allowed roots' }
+    }
+    try {
+      await runGit(['restore', '--staged', '--', filePath], cwd)
+      return { error: null }
+    } catch (err) {
+      return { error: err.message }
+    }
+  })
+}
 
 // --- Path Validation ---
 // Allowlist of root paths the renderer is permitted to access.
@@ -36,12 +199,19 @@ class PtyManager {
     const cwd = options.cwd || process.env.HOME || process.env.USERPROFILE
     const args = options.args || []
 
+    // Strip Claude Code session markers so child shells don't trigger
+    // nested-session detection when the user runs `claude` inside the PTY
+    const env = { ...process.env, TERM: 'xterm-256color' }
+    delete env.CLAUDE_CODE_ENTRYPOINT
+    delete env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
+    delete env.CLAUDECODE
+
     const ptyProcess = pty.spawn(shell, args, {
       name: 'xterm-256color',
       cols: options.cols || 120,
       rows: options.rows || 30,
       cwd,
-      env: { ...process.env, TERM: 'xterm-256color' }
+      env
     })
 
     this.ptys.set(id, ptyProcess)
@@ -301,6 +471,14 @@ ipcMain.handle('app:get-home-path', () => {
 })
 
 // Clipboard IPC Handlers
+ipcMain.handle('clipboard:write-text', (event, { text }) => {
+  clipboard.writeText(text)
+})
+
+ipcMain.handle('clipboard:read-text', () => {
+  return clipboard.readText()
+})
+
 ipcMain.handle('clipboard:read-image', () => {
   const img = clipboard.readImage()
   if (img.isEmpty()) return null

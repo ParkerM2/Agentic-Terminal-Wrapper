@@ -69,6 +69,33 @@ export function useTerminal(ptyId, containerRef, { cwd, autoStart, fontSize } = 
 
     term.open(containerRef.current)
 
+    // Clipboard: Ctrl+C copies selection (or sends SIGINT), Ctrl+V pastes
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true
+      const ctrlOrMeta = e.ctrlKey || e.metaKey
+
+      if (ctrlOrMeta && e.key === 'c') {
+        const selection = term.getSelection()
+        if (selection) {
+          window.electronAPI.clipboardWriteText(selection)
+          term.clearSelection()
+          return false
+        }
+        return true // no selection → SIGINT
+      }
+
+      if (ctrlOrMeta && e.key === 'v') {
+        window.electronAPI.clipboardReadText().then((text) => {
+          if (text) {
+            window.electronAPI.ptyWrite({ id: ptyId, data: text })
+          }
+        })
+        return false
+      }
+
+      return true
+    })
+
     // Small delay to ensure container is laid out
     requestAnimationFrame(() => {
       try {
