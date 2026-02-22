@@ -1,0 +1,48 @@
+{
+  "name": "Default Workflow",
+  "description": "Standard feature implementation workflow with planning, agent teams, QA review, and documentation updates",
+  "steps": [
+    {
+      "id": "create-plan",
+      "title": "Create Plan",
+      "description": "Deep technical planning and task decomposition before implementation",
+      "file": "steps/01-create-plan.md",
+      "order": 1
+    },
+    {
+      "id": "implement-plan",
+      "title": "Implement Plan",
+      "description": "Execute the plan through specialist agents in isolated worktrees",
+      "file": "steps/02-implement-plan.md",
+      "order": 2
+    },
+    {
+      "id": "team-management",
+      "title": "Team Management",
+      "description": "Coordinate agent teams across waves with dependency tracking",
+      "file": "steps/03-team-management.md",
+      "order": 3
+    },
+    {
+      "id": "review",
+      "title": "Review",
+      "description": "Per-task QA verification and code review against acceptance criteria",
+      "file": "steps/04-review.md",
+      "order": 4
+    },
+    {
+      "id": "test",
+      "title": "Test",
+      "description": "Automated testing, build verification, and lint checks",
+      "file": "steps/05-test.md",
+      "order": 5
+    },
+    {
+      "id": "update-docs",
+      "title": "Update Docs",
+      "description": "Update project documentation and architecture files to reflect changes",
+      "file": "steps/06-update-docs.md",
+      "order": 6
+    }
+  ]
+}
