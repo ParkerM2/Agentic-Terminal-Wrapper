@@ -19,16 +19,16 @@ const COMMANDS = [
 
 export default function CommandList({ onSendCommand }) {
   return (
-    <div className="command-list">
+    <div data-slot="command-list" className="flex flex-col gap-1">
       {COMMANDS.map(cmd => (
         <button
           key={cmd.name}
-          className="command-item"
+          className="flex items-start gap-2 w-full text-left px-2 py-1.5 rounded-md hover:bg-accent transition-colors"
           onClick={() => onSendCommand(cmd.name)}
         >
           <div>
-            <div className="command-item__name">{cmd.name}</div>
-            <div className="command-item__desc">{cmd.desc}</div>
+            <div className="text-xs font-mono font-medium text-foreground">{cmd.name}</div>
+            <div className="text-xs text-muted-foreground">{cmd.desc}</div>
           </div>
         </button>
       ))}
