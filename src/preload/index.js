@@ -41,6 +41,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readClipboardImage: () => ipcRenderer.invoke('clipboard:read-image'),
   saveTempImage: (dataURL) => ipcRenderer.invoke('app:save-temp-image', { dataURL }),
 
+  // Workflow
+  workflowHasWorkflow: (projectPath) => ipcRenderer.invoke('workflow:has-workflow', { projectPath }),
+  workflowGetConfig: (projectPath) => ipcRenderer.invoke('workflow:get-config', { projectPath }),
+  workflowGetWorkflow: (projectPath) => ipcRenderer.invoke('workflow:get-workflow', { projectPath }),
+  workflowGetStepContent: (projectPath, stepFile) => ipcRenderer.invoke('workflow:get-step-content', { projectPath, stepFile }),
+  workflowSaveStepContent: (projectPath, stepFile, content) => ipcRenderer.invoke('workflow:save-step-content', { projectPath, stepFile, content }),
+  workflowGetProgress: (projectPath) => ipcRenderer.invoke('workflow:get-progress', { projectPath }),
+  workflowWatchProgress: (projectPath) => ipcRenderer.invoke('workflow:watch-progress', { projectPath }),
+  workflowUnwatchProgress: (watchId) => ipcRenderer.invoke('workflow:unwatch-progress', { watchId }),
+  workflowScaffold: (projectPath) => ipcRenderer.invoke('workflow:scaffold', { projectPath }),
+  onWorkflowProgressChanged: (callback) => {
+    const handler = (_event, data) => callback(data)
+    ipcRenderer.on('workflow:progress-changed', handler)
+    return () => ipcRenderer.removeListener('workflow:progress-changed', handler)
+  },
+
   // Window Controls
   windowMinimize: () => ipcRenderer.send('window:minimize'),
   windowMaximize: () => ipcRenderer.send('window:maximize'),
