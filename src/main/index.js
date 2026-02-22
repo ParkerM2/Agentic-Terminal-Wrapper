@@ -325,10 +325,272 @@ ipcMain.on('window:maximize', () => {
 })
 ipcMain.on('window:close', () => mainWindow?.close())
 
+// --- Workflow Scanner ---
+class WorkflowScanner {
+  constructor() {
+    this.watchers = new Map()
+  }
+
+  async getConfig(projectPath) {
+    const configPath = path.join(projectPath, '.claude', 'workflow.json')
+    try {
+      const raw = await fs.promises.readFile(configPath, 'utf-8')
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+
+  async getWorkflow(projectPath) {
+    const config = await this.getConfig(projectPath)
+    if (!config || !config.activeWorkflow || !config.workflowsDir) {
+      return null
+    }
+
+    const workflowDir = path.join(projectPath, config.workflowsDir, config.activeWorkflow)
+    const workflowJsonPath = path.join(workflowDir, 'workflow.json')
+
+    try {
+      const raw = await fs.promises.readFile(workflowJsonPath, 'utf-8')
+      const workflow = JSON.parse(raw)
+      return { ...workflow, basePath: workflowDir }
+    } catch {
+      return null
+    }
+  }
+
+  async getStepContent(projectPath, stepFile) {
+    const config = await this.getConfig(projectPath)
+    if (!config) return { content: null, error: 'No workflow config' }
+
+    const filePath = path.join(projectPath, config.workflowsDir, config.activeWorkflow, stepFile)
+    try {
+      const content = await fs.promises.readFile(filePath, 'utf-8')
+      return { content, error: null }
+    } catch (err) {
+      return { content: null, error: err.message }
+    }
+  }
+
+  async saveStepContent(projectPath, stepFile, content) {
+    const config = await this.getConfig(projectPath)
+    if (!config) return { error: 'No workflow config' }
+
+    const filePath = path.join(projectPath, config.workflowsDir, config.activeWorkflow, stepFile)
+    try {
+      await fs.promises.writeFile(filePath, content, 'utf-8')
+      return { error: null }
+    } catch (err) {
+      return { error: err.message }
+    }
+  }
+
+  async getProgress(projectPath) {
+    const config = await this.getConfig(projectPath)
+    if (!config || !config.progressDir) return null
+
+    const progressDir = path.join(projectPath, config.progressDir)
+    try {
+      const entries = await fs.promises.readdir(progressDir, { withFileTypes: true })
+      const features = []
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        const currentPath = path.join(progressDir, entry.name, 'current.md')
+        try {
+          const content = await fs.promises.readFile(currentPath, 'utf-8')
+          const statusMatch = content.match(/\*\*Status:\*\*\s*(\w+)/)
+          features.push({
+            name: entry.name,
+            status: statusMatch ? statusMatch[1] : 'unknown',
+            currentFile: currentPath
+          })
+        } catch {
+          features.push({ name: entry.name, status: 'unknown', currentFile: null })
+        }
+      }
+
+      return { features, progressDir }
+    } catch {
+      return { features: [], progressDir }
+    }
+  }
+
+  watchProgress(projectPath, callback) {
+    const config = this._getConfigSync(projectPath)
+    if (!config || !config.progressDir) return null
+
+    const progressDir = path.join(projectPath, config.progressDir)
+    const watchId = `workflow-progress-${projectPath}`
+
+    if (this.watchers.has(watchId)) {
+      this.watchers.get(watchId).close()
+    }
+
+    try {
+      const watcher = fs.watch(progressDir, { recursive: true }, (eventType, filename) => {
+        callback({ eventType, filename, progressDir })
+      })
+      watcher.on('error', () => {})
+      this.watchers.set(watchId, watcher)
+      return watchId
+    } catch {
+      return null
+    }
+  }
+
+  unwatchProgress(watchId) {
+    if (this.watchers.has(watchId)) {
+      this.watchers.get(watchId).close()
+      this.watchers.delete(watchId)
+    }
+  }
+
+  _getConfigSync(projectPath) {
+    const configPath = path.join(projectPath, '.claude', 'workflow.json')
+    try {
+      const raw = fs.readFileSync(configPath, 'utf-8')
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+
+  async hasWorkflow(projectPath) {
+    const config = await this.getConfig(projectPath)
+    return config !== null
+  }
+
+  async scaffold(projectPath) {
+    const claudeDir = path.join(projectPath, '.claude')
+    const workflowsDir = path.join(claudeDir, 'docs', 'workflows', 'default', 'steps')
+    const agentsDir = path.join(claudeDir, 'agents')
+    const progressDir = path.join(claudeDir, 'progress')
+
+    await fs.promises.mkdir(workflowsDir, { recursive: true })
+    await fs.promises.mkdir(agentsDir, { recursive: true })
+    await fs.promises.mkdir(progressDir, { recursive: true })
+
+    const config = {
+      projectRulesFile: 'CLAUDE.md',
+      architectureFile: '.claude/docs/ARCHITECTURE.md',
+      progressDir: '.claude/progress',
+      branching: {
+        baseBranch: 'auto',
+        featurePrefix: 'feature',
+        workPrefix: 'work',
+        enforce: 'warn',
+        protectedBranches: ['main', 'master'],
+        useWorktrees: true,
+        worktreeDir: '.worktrees'
+      },
+      activeWorkflow: 'default',
+      workflowsDir: '.claude/docs/workflows'
+    }
+    await fs.promises.writeFile(
+      path.join(claudeDir, 'workflow.json'),
+      JSON.stringify(config, null, 2),
+      'utf-8'
+    )
+
+    const workflow = {
+      name: 'Default Workflow',
+      description: 'Standard feature implementation workflow',
+      steps: [
+        { id: 'create-plan', title: 'Create Plan', description: 'Technical planning and task decomposition', file: 'steps/01-create-plan.md', order: 1 },
+        { id: 'implement-plan', title: 'Implement Plan', description: 'Execute through specialist agents', file: 'steps/02-implement-plan.md', order: 2 },
+        { id: 'team-management', title: 'Team Management', description: 'Coordinate agent teams across waves', file: 'steps/03-team-management.md', order: 3 },
+        { id: 'review', title: 'Review', description: 'QA verification and code review', file: 'steps/04-review.md', order: 4 },
+        { id: 'test', title: 'Test', description: 'Automated testing and build verification', file: 'steps/05-test.md', order: 5 },
+        { id: 'update-docs', title: 'Update Docs', description: 'Update documentation to reflect changes', file: 'steps/06-update-docs.md', order: 6 }
+      ]
+    }
+    await fs.promises.writeFile(
+      path.join(claudeDir, 'docs', 'workflows', 'default', 'workflow.json'),
+      JSON.stringify(workflow, null, 2),
+      'utf-8'
+    )
+
+    const steps = [
+      { file: '01-create-plan.md', content: '# Create Plan\n\nUse `/create-feature-plan` to analyze the codebase and produce a detailed design document.\n' },
+      { file: '02-implement-plan.md', content: '# Implement Plan\n\nUse `/implement-feature` to execute the plan through specialist agents in isolated worktrees.\n' },
+      { file: '03-team-management.md', content: '# Team Management\n\nThe Team Leader coordinates agent teams across dependency-ordered waves.\n' },
+      { file: '04-review.md', content: '# Review\n\nEach task goes through QA review before merge. Up to 3 rounds of feedback.\n' },
+      { file: '05-test.md', content: '# Test\n\nWave fence checks verify builds pass. Final Guardian check validates structural integrity.\n' },
+      { file: '06-update-docs.md', content: '# Update Docs\n\nUpdate ARCHITECTURE.md, CLAUDE.md, and any affected documentation.\n' }
+    ]
+
+    for (const step of steps) {
+      await fs.promises.writeFile(
+        path.join(workflowsDir, step.file),
+        step.content,
+        'utf-8'
+      )
+    }
+
+    await fs.promises.writeFile(path.join(progressDir, '.gitkeep'), '', 'utf-8')
+
+    return { success: true }
+  }
+
+  cleanup() {
+    for (const watcher of this.watchers.values()) {
+      watcher.close()
+    }
+    this.watchers.clear()
+  }
+}
+
+// --- Workflow IPC Handlers ---
+const workflowScanner = new WorkflowScanner()
+
+ipcMain.handle('workflow:has-workflow', async (event, { projectPath }) => {
+  return workflowScanner.hasWorkflow(projectPath)
+})
+
+ipcMain.handle('workflow:get-config', async (event, { projectPath }) => {
+  return workflowScanner.getConfig(projectPath)
+})
+
+ipcMain.handle('workflow:get-workflow', async (event, { projectPath }) => {
+  return workflowScanner.getWorkflow(projectPath)
+})
+
+ipcMain.handle('workflow:get-step-content', async (event, { projectPath, stepFile }) => {
+  return workflowScanner.getStepContent(projectPath, stepFile)
+})
+
+ipcMain.handle('workflow:save-step-content', async (event, { projectPath, stepFile, content }) => {
+  return workflowScanner.saveStepContent(projectPath, stepFile, content)
+})
+
+ipcMain.handle('workflow:get-progress', async (event, { projectPath }) => {
+  return workflowScanner.getProgress(projectPath)
+})
+
+ipcMain.handle('workflow:watch-progress', (event, { projectPath }) => {
+  const watchId = workflowScanner.watchProgress(projectPath, (change) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('workflow:progress-changed', change)
+    }
+  })
+  return { watchId }
+})
+
+ipcMain.handle('workflow:unwatch-progress', (event, { watchId }) => {
+  workflowScanner.unwatchProgress(watchId)
+  return { success: true }
+})
+
+ipcMain.handle('workflow:scaffold', async (event, { projectPath }) => {
+  return workflowScanner.scaffold(projectPath)
+})
+
 app.whenReady().then(createWindow)
 
 app.on('window-all-closed', async () => {
   ptyManager.killAll()
+  workflowScanner.cleanup()
   for (const watcher of activeWatchers.values()) watcher.close()
   activeWatchers.clear()
   await cleanupTempImages()
