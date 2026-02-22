@@ -1,0 +1,16 @@
+{
+  "projectRulesFile": "CLAUDE.md",
+  "architectureFile": ".claude/docs/ARCHITECTURE.md",
+  "progressDir": ".claude/progress",
+  "branching": {
+    "baseBranch": "auto",
+    "featurePrefix": "feature",
+    "workPrefix": "work",
+    "enforce": "warn",
+    "protectedBranches": ["main", "master"],
+    "useWorktrees": true,
+    "worktreeDir": ".worktrees"
+  },
+  "activeWorkflow": "default",
+  "workflowsDir": ".claude/docs/workflows"
+}
