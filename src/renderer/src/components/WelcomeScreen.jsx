@@ -1,4 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { cn } from '@/lib/utils'
+import { Button } from './ui/button'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
+import { Input } from './ui/input'
+import { ScrollArea } from './ui/scroll-area'
 
 export default function WelcomeScreen({ recentProjects, onSelectProject, onOpenFolder, onCreateProject }) {
   const [search, setSearch] = useState('')
@@ -37,56 +42,62 @@ export default function WelcomeScreen({ recentProjects, onSelectProject, onOpenF
   }, [selectedIndex])
 
   return (
-    <div className="welcome-screen">
-      <div className="welcome-screen__card">
-        <div className="welcome-screen__header">
-          <h1 className="welcome-screen__title">Claude Terminal</h1>
-          <p className="welcome-screen__subtitle">Select a project to get started</p>
-        </div>
+    <div data-slot="welcome-screen" className="flex items-center justify-center h-full bg-background/50 p-8">
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl">Claude Terminal</CardTitle>
+          <CardDescription>Select a project to get started</CardDescription>
+        </CardHeader>
 
-        <div className="welcome-screen__actions">
-          <button className="welcome-screen__btn welcome-screen__btn--primary" onClick={onOpenFolder}>
-            <span className="welcome-screen__btn-icon">&#x1F4C2;</span>
-            Open Project
-          </button>
-          <button className="welcome-screen__btn welcome-screen__btn--secondary" onClick={onCreateProject}>
-            <span className="welcome-screen__btn-icon">+</span>
-            Create New Project
-          </button>
-        </div>
-
-        {recentProjects.length > 0 && (
-          <div className="welcome-screen__recent">
-            <div className="welcome-screen__recent-header">Recent Projects</div>
-            <input
-              className="welcome-screen__search"
-              type="text"
-              placeholder="Search recent projects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              autoFocus
-            />
-            <div className="welcome-screen__list" ref={listRef}>
-              {filtered.length === 0 ? (
-                <div className="welcome-screen__empty">No matching projects</div>
-              ) : (
-                filtered.map((project, i) => (
-                  <button
-                    key={project.path}
-                    className={`welcome-screen__project ${i === selectedIndex ? 'welcome-screen__project--selected' : ''}`}
-                    onClick={() => onSelectProject(project.path)}
-                    onMouseEnter={() => setSelectedIndex(i)}
-                  >
-                    <span className="welcome-screen__project-name">{project.name}</span>
-                    <span className="welcome-screen__project-path">{project.path}</span>
-                  </button>
-                ))
-              )}
-            </div>
+        <CardContent className="space-y-6">
+          <div className="flex gap-3">
+            <Button className="flex-1 gap-2" onClick={onOpenFolder}>
+              <span>&#x1F4C2;</span>
+              Open Project
+            </Button>
+            <Button variant="secondary" className="flex-1 gap-2" onClick={onCreateProject}>
+              <span>+</span>
+              Create New Project
+            </Button>
           </div>
-        )}
-      </div>
+
+          {recentProjects.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground">Recent Projects</h3>
+              <Input
+                type="text"
+                placeholder="Search recent projects..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleKeyDown}
+                autoFocus
+              />
+              <ScrollArea className="max-h-64">
+                <div className="space-y-1" ref={listRef}>
+                  {filtered.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No matching projects</p>
+                  ) : (
+                    filtered.map((project, i) => (
+                      <button
+                        key={project.path}
+                        className={cn(
+                          'w-full flex flex-col items-start gap-0.5 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors',
+                          i === selectedIndex && 'bg-accent'
+                        )}
+                        onClick={() => onSelectProject(project.path)}
+                        onMouseEnter={() => setSelectedIndex(i)}
+                      >
+                        <span className="text-sm font-medium text-foreground">{project.name}</span>
+                        <span className="text-xs text-muted-foreground truncate max-w-full">{project.path}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
