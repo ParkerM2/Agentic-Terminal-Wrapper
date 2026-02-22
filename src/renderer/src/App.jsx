@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Panel, Group, Separator } from 'react-resizable-panels'
+import { cn } from './lib/utils'
+import { Button } from './components/ui/button'
 import TabBar from './components/TabBar'
 import Sidebar from './components/Sidebar'
 import PaneContainer from './components/PaneContainer'
@@ -193,13 +195,13 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-    <div className="app-layout">
-      <div className="title-bar">
-        <span className="title-bar__label">CLAUDE TERMINAL</span>
-        <div className="title-bar__controls">
-          <button className="title-bar__btn" onClick={() => window.electronAPI.windowMinimize()}>&#x2013;</button>
-          <button className="title-bar__btn" onClick={() => window.electronAPI.windowMaximize()}>&#x25A1;</button>
-          <button className="title-bar__btn title-bar__btn--close" onClick={() => window.electronAPI.windowClose()}>&#x2715;</button>
+    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden" data-slot="app-layout">
+      <div className="flex items-center justify-between h-8 px-3 bg-background/80 backdrop-blur-sm border-b border-border electron-drag select-none shrink-0" data-slot="title-bar">
+        <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase electron-no-drag">CLAUDE TERMINAL</span>
+        <div className="flex items-center gap-1 electron-no-drag">
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" onClick={() => window.electronAPI.windowMinimize()}>&#x2013;</Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" onClick={() => window.electronAPI.windowMaximize()}>&#x25A1;</Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm hover:bg-destructive hover:text-destructive-foreground" onClick={() => window.electronAPI.windowClose()}>&#x2715;</Button>
         </div>
       </div>
       <TabBar
@@ -209,7 +211,7 @@ export default function App() {
         onAddTab={handleAddTab}
         onCloseTab={handleCloseTab}
       />
-      <div className={`app-body ${settings.sidebarPosition === 'right' ? 'app-body--sidebar-right' : ''}`}>
+      <div className={cn("flex flex-1 overflow-hidden", settings.sidebarPosition === 'right' && "flex-row-reverse")} data-slot="app-body">
         <Sidebar
           cwd={activeTab.cwd}
           onSendCommand={handleSendToTerminal}
@@ -217,24 +219,26 @@ export default function App() {
           settings={settings}
           onSettingsChange={handleSettingsChange}
         />
-        <div className="pane-container">
-          <div className="pane-toolbar">
-            <button className="pane-toolbar__btn" onClick={handleSplitH} title="Split Horizontal (Ctrl+Shift+|)">
+        <div className="flex flex-col flex-1 overflow-hidden" data-slot="pane-container">
+          <div className="flex items-center gap-2 px-2 h-8 border-b border-border shrink-0" data-slot="pane-toolbar">
+            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={handleSplitH} title="Split Horizontal (Ctrl+Shift+|)">
               <span>&#x2502;</span> Split H
-            </button>
-            <button className="pane-toolbar__btn" onClick={handleSplitV} title="Split Vertical (Ctrl+Shift+_)">
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={handleSplitV} title="Split Vertical (Ctrl+Shift+_)">
               <span>&#x2500;</span> Split V
-            </button>
-            <div style={{ flex: 1 }} />
-            <button
-              className={`pane-toolbar__btn ${editorVisible ? 'pane-toolbar__btn--active' : ''}`}
+            </Button>
+            <div className="flex-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("h-6 text-xs gap-1", editorVisible && "bg-accent text-accent-foreground")}
               onClick={toggleEditor}
               title="Toggle Editor (Ctrl+E)"
             >
               &#x270E; Editor
-            </button>
+            </Button>
           </div>
-          <div className="pane-area">
+          <div className="flex-1 overflow-hidden" data-slot="pane-area">
             {editorVisible ? (
               <Group direction="vertical" style={{ height: '100%' }}>
                 <Panel defaultSize={50} minSize={15}>
