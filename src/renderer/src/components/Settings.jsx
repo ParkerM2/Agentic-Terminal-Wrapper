@@ -2,13 +2,13 @@ import React from 'react'
 
 export default function Settings({ settings, onChange }) {
   return (
-    <div className="settings-panel">
-      <div className="settings-group">
-        <div className="settings-group__label">Sidebar Position</div>
-        <div className="settings-option">
-          <span className="settings-option__label">Position</span>
+    <div className="flex flex-col gap-4 p-1">
+      <div className="space-y-2">
+        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sidebar Position</div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-foreground">Position</span>
           <select
-            className="settings-select"
+            className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             value={settings.sidebarPosition}
             onChange={(e) => onChange('sidebarPosition', e.target.value)}
           >
@@ -17,12 +17,12 @@ export default function Settings({ settings, onChange }) {
           </select>
         </div>
       </div>
-      <div className="settings-group">
-        <div className="settings-group__label">Font Size</div>
-        <div className="settings-option">
-          <span className="settings-option__label">Terminal Font</span>
+      <div className="space-y-2">
+        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Font Size</div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-foreground">Terminal Font</span>
           <select
-            className="settings-select"
+            className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             value={settings.fontSize}
             onChange={(e) => onChange('fontSize', Number(e.target.value))}
           >
@@ -35,11 +35,11 @@ export default function Settings({ settings, onChange }) {
           </select>
         </div>
       </div>
-      <div className="settings-group">
-        <div className="settings-group__label">About</div>
-        <div className="settings-option" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-          <span className="settings-option__label">Claude Terminal v1.0.0</span>
-          <span style={{ color: 'var(--fg-dim)', fontSize: '11px' }}>
+      <div className="space-y-2">
+        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">About</div>
+        <div className="flex flex-col items-start gap-1">
+          <span className="text-sm text-foreground">Claude Terminal v1.0.0</span>
+          <span className="text-xs text-muted-foreground">
             Electron wrapper for Claude Code CLI
           </span>
         </div>

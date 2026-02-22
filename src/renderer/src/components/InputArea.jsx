@@ -1,4 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
+import { Button } from './ui/button'
+import { cn } from '../lib/utils'
 
 export default function InputArea({ onSend }) {
   const [text, setText] = useState('')
@@ -51,20 +53,20 @@ export default function InputArea({ onSend }) {
   }, [])
 
   return (
-    <div>
+    <div data-slot="input-area-wrapper">
       {imagePreview && (
-        <div className="input-area__preview" style={{ margin: '8px 12px 0' }}>
-          <img src={imagePreview} alt="Pasted" />
-          <span style={{ color: 'var(--fg-dim)', fontSize: '11px' }}>Image attached</span>
-          <button className="input-area__preview-remove" onClick={handleRemoveImage}>
+        <div className="flex items-center gap-2 mx-3 mt-2 p-2 rounded-md bg-card border border-border">
+          <img src={imagePreview} alt="Pasted" className="h-10 w-10 rounded object-cover" />
+          <span className="text-xs text-muted-foreground">Image attached</span>
+          <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto" onClick={handleRemoveImage}>
             &#x2715;
-          </button>
+          </Button>
         </div>
       )}
-      <div className="input-area">
+      <div className="flex items-end gap-2 p-2 border-t border-border">
         <textarea
           ref={textareaRef}
-          className="input-area__field"
+          className="flex-1 resize-none bg-transparent border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[36px] max-h-[120px]"
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
@@ -72,14 +74,15 @@ export default function InputArea({ onSend }) {
           placeholder="Send a message to Claude... (Ctrl+V to paste images)"
           rows={1}
         />
-        <button
-          className="input-area__send"
+        <Button
+          size="icon"
+          className="h-8 w-8 shrink-0"
           onClick={handleSend}
           disabled={!text.trim() && !imagePath}
           title="Send (Enter)"
         >
           &#x2191;
-        </button>
+        </Button>
       </div>
     </div>
   )
