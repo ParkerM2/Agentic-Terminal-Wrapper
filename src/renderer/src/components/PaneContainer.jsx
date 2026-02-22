@@ -5,13 +5,7 @@ import TerminalPane from './TerminalPane'
 export default function PaneContainer({ panes, onClosePane, cwd, onPaneActivate, direction, fontSize }) {
   if (panes.length === 0) {
     return (
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--fg-dim)'
-      }}>
+      <div className="flex flex-1 items-center justify-center text-muted-foreground">
         No panes open. Click "Split H" or "Split V" to add one.
       </div>
     )

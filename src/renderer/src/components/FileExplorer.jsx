@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { cn } from '@/lib/utils'
+import { Input } from './ui/input'
 
 function FileNode({ entry, depth, onSelect, refreshKey }) {
   const [expanded, setExpanded] = useState(false)
@@ -28,18 +30,18 @@ function FileNode({ entry, depth, onSelect, refreshKey }) {
   }, [entry, expanded, loadChildren, onSelect])
 
   const icon = entry.type === 'directory'
-    ? (expanded ? '📂' : '📁')
-    : '📄'
+    ? (expanded ? '\u{1F4C2}' : '\u{1F4C1}')
+    : '\u{1F4C4}'
 
   return (
     <>
       <div
-        className="file-tree-node"
+        className="flex items-center gap-1.5 py-0.5 px-1 rounded-sm cursor-pointer hover:bg-accent text-sm transition-colors"
         style={{ paddingLeft: `${8 + depth * 16}px` }}
         onClick={handleClick}
       >
-        <span className="file-tree-node__icon">{icon}</span>
-        <span className="file-tree-node__name">{entry.name}</span>
+        <span className="shrink-0 text-xs">{icon}</span>
+        <span className="truncate text-sm">{entry.name}</span>
       </div>
       {expanded && children && children.map(child => (
         <FileNode
@@ -124,14 +126,13 @@ export default function FileExplorer({ cwd, onOpenFile }) {
   }
 
   return (
-    <div className="file-tree">
-      <form onSubmit={handlePathSubmit} style={{ padding: '4px 0 8px' }}>
-        <input
+    <div data-slot="file-explorer" className="flex flex-col">
+      <form onSubmit={handlePathSubmit} className="pb-2">
+        <Input
           type="text"
           value={pathInput}
           onChange={(e) => setPathInput(e.target.value)}
-          className="input-area__field"
-          style={{ width: '100%', fontSize: '11px', padding: '4px 8px', minHeight: '28px' }}
+          className="h-7 text-xs"
           placeholder="Directory path..."
         />
       </form>
@@ -145,9 +146,7 @@ export default function FileExplorer({ cwd, onOpenFile }) {
         />
       ))}
       {rootEntries.length === 0 && (
-        <div style={{ padding: '8px', color: 'var(--fg-dim)', fontSize: '12px' }}>
-          No files found. Enter a path above.
-        </div>
+        <p className="px-2 text-muted-foreground text-xs">No files found. Enter a path above.</p>
       )}
     </div>
   )

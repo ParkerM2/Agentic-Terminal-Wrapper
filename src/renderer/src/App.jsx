@@ -1,11 +1,15 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Panel, Group, Separator } from 'react-resizable-panels'
+import { cn } from './lib/utils'
+import { Button } from './components/ui/button'
 import TabBar from './components/TabBar'
 import Sidebar from './components/Sidebar'
 import PaneContainer from './components/PaneContainer'
 import InputArea from './components/InputArea'
 import EditorPanel from './components/EditorPanel'
 import ErrorBoundary from './components/ErrorBoundary'
+import { useWorkflow } from './hooks/useWorkflow'
+import WorkflowPanel from './components/WorkflowPanel'
 
 const TAB_COLORS = [
   '#7aa2f7', '#bb9af7', '#9ece6a', '#e0af68',
@@ -43,8 +47,12 @@ export default function App() {
   const [openFiles, setOpenFiles] = useState([])
   const [activeFileId, setActiveFileId] = useState(null)
   const [editorVisible, setEditorVisible] = useState(false)
+  const [workflowVisible, setWorkflowVisible] = useState(false)
 
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0]
+
+  // Workflow state
+  const workflowState = useWorkflow(activeTab.cwd)
 
   const handleAddTab = useCallback(() => {
     setTabs(prev => {
@@ -142,6 +150,10 @@ export default function App() {
     setEditorVisible(prev => !prev)
   }, [])
 
+  const toggleWorkflow = useCallback(() => {
+    setWorkflowVisible(prev => !prev)
+  }, [])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -166,11 +178,16 @@ export default function App() {
         e.preventDefault()
         toggleEditor()
       }
+      // Ctrl+Shift+W: Toggle workflow panel
+      if (e.ctrlKey && e.shiftKey && e.key === 'W') {
+        e.preventDefault()
+        toggleWorkflow()
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleAddTab, handleCloseTab, handleSplitH, handleSplitV, activeTabId, toggleEditor])
+  }, [handleAddTab, handleCloseTab, handleSplitH, handleSplitV, activeTabId, toggleEditor, toggleWorkflow])
 
   // Load settings on mount
   useEffect(() => {
@@ -193,13 +210,13 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-    <div className="app-layout">
-      <div className="title-bar">
-        <span className="title-bar__label">CLAUDE TERMINAL</span>
-        <div className="title-bar__controls">
-          <button className="title-bar__btn" onClick={() => window.electronAPI.windowMinimize()}>&#x2013;</button>
-          <button className="title-bar__btn" onClick={() => window.electronAPI.windowMaximize()}>&#x25A1;</button>
-          <button className="title-bar__btn title-bar__btn--close" onClick={() => window.electronAPI.windowClose()}>&#x2715;</button>
+    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden" data-slot="app-layout">
+      <div className="flex items-center justify-between h-8 px-3 bg-background/80 backdrop-blur-sm border-b border-border electron-drag select-none shrink-0" data-slot="title-bar">
+        <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase electron-no-drag">CLAUDE TERMINAL</span>
+        <div className="flex items-center gap-1 electron-no-drag">
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" onClick={() => window.electronAPI.windowMinimize()}>&#x2013;</Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" onClick={() => window.electronAPI.windowMaximize()}>&#x25A1;</Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm hover:bg-destructive hover:text-destructive-foreground" onClick={() => window.electronAPI.windowClose()}>&#x2715;</Button>
         </div>
       </div>
       <TabBar
@@ -209,7 +226,7 @@ export default function App() {
         onAddTab={handleAddTab}
         onCloseTab={handleCloseTab}
       />
-      <div className={`app-body ${settings.sidebarPosition === 'right' ? 'app-body--sidebar-right' : ''}`}>
+      <div className={cn("flex flex-1 overflow-hidden", settings.sidebarPosition === 'right' && "flex-row-reverse")} data-slot="app-body">
         <Sidebar
           cwd={activeTab.cwd}
           onSendCommand={handleSendToTerminal}
@@ -217,55 +234,109 @@ export default function App() {
           settings={settings}
           onSettingsChange={handleSettingsChange}
         />
-        <div className="pane-container">
-          <div className="pane-toolbar">
-            <button className="pane-toolbar__btn" onClick={handleSplitH} title="Split Horizontal (Ctrl+Shift+|)">
+        <div className="flex flex-col flex-1 overflow-hidden" data-slot="pane-container">
+          <div className="flex items-center gap-2 px-2 h-8 border-b border-border shrink-0" data-slot="pane-toolbar">
+            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={handleSplitH} title="Split Horizontal (Ctrl+Shift+|)">
               <span>&#x2502;</span> Split H
-            </button>
-            <button className="pane-toolbar__btn" onClick={handleSplitV} title="Split Vertical (Ctrl+Shift+_)">
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={handleSplitV} title="Split Vertical (Ctrl+Shift+_)">
               <span>&#x2500;</span> Split V
-            </button>
-            <div style={{ flex: 1 }} />
-            <button
-              className={`pane-toolbar__btn ${editorVisible ? 'pane-toolbar__btn--active' : ''}`}
+            </Button>
+            <div className="flex-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("h-6 text-xs gap-1", editorVisible && "bg-accent text-accent-foreground")}
               onClick={toggleEditor}
               title="Toggle Editor (Ctrl+E)"
             >
               &#x270E; Editor
-            </button>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("h-6 text-xs gap-1", workflowVisible && "bg-accent text-accent-foreground")}
+              onClick={toggleWorkflow}
+              title="Toggle Workflow Panel (Ctrl+Shift+W)"
+            >
+              &#x2699; Workflow
+            </Button>
           </div>
-          <div className="pane-area">
-            {editorVisible ? (
-              <Group direction="vertical" style={{ height: '100%' }}>
-                <Panel defaultSize={50} minSize={15}>
-                  <EditorPanel
-                    openFiles={openFiles}
-                    activeFileId={activeFileId}
-                    onSelectFile={setActiveFileId}
-                    onCloseFile={handleCloseFile}
-                  />
+          <div className="flex-1 overflow-hidden" data-slot="pane-area">
+            {workflowVisible ? (
+              <Group direction="horizontal" style={{ height: '100%' }}>
+                <Panel defaultSize={65} minSize={30}>
+                  {editorVisible ? (
+                    <Group direction="vertical" style={{ height: '100%' }}>
+                      <Panel defaultSize={50} minSize={15}>
+                        <EditorPanel
+                          openFiles={openFiles}
+                          activeFileId={activeFileId}
+                          onSelectFile={setActiveFileId}
+                          onCloseFile={handleCloseFile}
+                        />
+                      </Panel>
+                      <Separator />
+                      <Panel defaultSize={50} minSize={15}>
+                        <PaneContainer
+                          panes={activeTab.panes}
+                          onClosePane={handleClosePane}
+                          cwd={activeTab.cwd}
+                          onPaneActivate={setActivePaneId}
+                          fontSize={settings.fontSize}
+                          direction={activeTab.splitDirection}
+                        />
+                      </Panel>
+                    </Group>
+                  ) : (
+                    <PaneContainer
+                      panes={activeTab.panes}
+                      onClosePane={handleClosePane}
+                      cwd={activeTab.cwd}
+                      onPaneActivate={setActivePaneId}
+                      fontSize={settings.fontSize}
+                      direction={activeTab.splitDirection}
+                    />
+                  )}
                 </Panel>
                 <Separator />
-                <Panel defaultSize={50} minSize={15}>
-                  <PaneContainer
-                    panes={activeTab.panes}
-                    onClosePane={handleClosePane}
-                    cwd={activeTab.cwd}
-                    onPaneActivate={setActivePaneId}
-                    fontSize={settings.fontSize}
-                    direction={activeTab.splitDirection}
-                  />
+                <Panel defaultSize={35} minSize={20}>
+                  <WorkflowPanel {...workflowState} />
                 </Panel>
               </Group>
             ) : (
-              <PaneContainer
-                panes={activeTab.panes}
-                onClosePane={handleClosePane}
-                cwd={activeTab.cwd}
-                onPaneActivate={setActivePaneId}
-                fontSize={settings.fontSize}
-                direction={activeTab.splitDirection}
-              />
+              editorVisible ? (
+                <Group direction="vertical" style={{ height: '100%' }}>
+                  <Panel defaultSize={50} minSize={15}>
+                    <EditorPanel
+                      openFiles={openFiles}
+                      activeFileId={activeFileId}
+                      onSelectFile={setActiveFileId}
+                      onCloseFile={handleCloseFile}
+                    />
+                  </Panel>
+                  <Separator />
+                  <Panel defaultSize={50} minSize={15}>
+                    <PaneContainer
+                      panes={activeTab.panes}
+                      onClosePane={handleClosePane}
+                      cwd={activeTab.cwd}
+                      onPaneActivate={setActivePaneId}
+                      fontSize={settings.fontSize}
+                      direction={activeTab.splitDirection}
+                    />
+                  </Panel>
+                </Group>
+              ) : (
+                <PaneContainer
+                  panes={activeTab.panes}
+                  onClosePane={handleClosePane}
+                  cwd={activeTab.cwd}
+                  onPaneActivate={setActivePaneId}
+                  fontSize={settings.fontSize}
+                  direction={activeTab.splitDirection}
+                />
+              )
             )}
           </div>
           <InputArea
