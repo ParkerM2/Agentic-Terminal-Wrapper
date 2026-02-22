@@ -4,29 +4,32 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 
+// Xterm theme harmonized with shadcn dark neutral palette
+// Neutral tones match oklch(0.145..0.985) background/foreground scale
+// ANSI colors kept vibrant for terminal readability
 const THEME = {
-  background: '#1a1b26',
-  foreground: '#a9b1d6',
-  cursor: '#c0caf5',
-  cursorAccent: '#1a1b26',
-  selectionBackground: '#33467c',
-  selectionForeground: '#c0caf5',
-  black: '#15161e',
+  background: '#202020',
+  foreground: '#e8e8e8',
+  cursor: '#f5f5f5',
+  cursorAccent: '#202020',
+  selectionBackground: '#3d3d3d',
+  selectionForeground: '#f5f5f5',
+  black: '#1a1a1a',
   red: '#f7768e',
   green: '#9ece6a',
   yellow: '#e0af68',
   blue: '#7aa2f7',
   magenta: '#bb9af7',
   cyan: '#7dcfff',
-  white: '#a9b1d6',
-  brightBlack: '#414868',
+  white: '#a8a8a8',
+  brightBlack: '#555555',
   brightRed: '#f7768e',
   brightGreen: '#9ece6a',
   brightYellow: '#e0af68',
   brightBlue: '#7aa2f7',
   brightMagenta: '#bb9af7',
   brightCyan: '#7dcfff',
-  brightWhite: '#c0caf5'
+  brightWhite: '#f5f5f5'
 }
 
 export function useTerminal(ptyId, containerRef, { cwd, autoStart, fontSize } = {}) {
