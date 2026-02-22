@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { cn } from '../lib/utils'
 import CodeMirror from '@uiw/react-codemirror'
 import { tokyoNightStorm } from '@uiw/codemirror-theme-tokyo-night-storm'
 import { javascript } from '@codemirror/lang-javascript'
@@ -124,8 +125,8 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
 
   if (openFiles.length === 0) {
     return (
-      <div className="editor-panel">
-        <div className="editor-panel__empty">
+      <div data-slot="editor-panel" className="flex flex-col h-full bg-background">
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
           Click a file in the explorer to open it
         </div>
       </div>
@@ -133,20 +134,23 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
   }
 
   return (
-    <div className="editor-panel">
-      <div className="editor-tabs">
+    <div data-slot="editor-panel" className="flex flex-col h-full bg-background">
+      <div className="flex items-center gap-0.5 px-2 h-8 bg-card/30 border-b border-border overflow-x-auto shrink-0">
         {openFiles.map(file => (
           <button
             key={file.id}
-            className={`editor-tab ${file.id === activeFileId ? 'editor-tab--active' : ''}`}
+            className={cn(
+              "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer border-0 bg-transparent whitespace-nowrap",
+              file.id === activeFileId && "bg-accent text-foreground font-medium"
+            )}
             onClick={() => onSelectFile(file.id)}
           >
-            <span className="editor-tab__name">
-              {modifiedFiles.has(file.id) && <span className="editor-tab__dot" />}
+            <span className="flex items-center gap-1">
+              {modifiedFiles.has(file.id) && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
               {getFileName(file.path)}
             </span>
             <span
-              className="editor-tab__close"
+              className="ml-1 text-muted-foreground hover:text-foreground text-xs"
               onClick={(e) => { e.stopPropagation(); onCloseFile(file.id) }}
             >
               &#x2715;
@@ -154,9 +158,9 @@ export default function EditorPanel({ openFiles, activeFileId, onSelectFile, onC
           </button>
         ))}
       </div>
-      <div className="editor-panel__body">
+      <div className="flex-1 overflow-hidden">
         {isLoading ? (
-          <div className="editor-panel__empty">Loading...</div>
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Loading...</div>
         ) : activeFile ? (
           <CodeMirror
             key={activeFile.id}
